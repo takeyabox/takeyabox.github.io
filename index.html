@@ -14,7 +14,7 @@
     .card{background:linear-gradient(180deg,#0f2740, #072033);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.04)}
     .small{font-size:13px;color:#b9d1ff}
     .select-list{display:flex;flex-direction:column;gap:6px}
-    button,select,input{font-size:14px}
+    button,select,input,textarea{font-size:14px}
     .btn{background:#2b6bf6;color:white;padding:8px 10px;border-radius:8px;border:none;cursor:pointer}
     .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.06)}
     .flex{display:flex;gap:8px;align-items:center}
@@ -24,7 +24,7 @@
     .hpbar > i{display:block;height:100%;background:linear-gradient(90deg,#51e06b,#2bd06b);width:100%}
     .moves{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px}
     .move{background:#0b2340;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.03);cursor:pointer}
-    .message-log{height:140px;overflow:hidden;padding:6px;border-radius:6px;background:rgba(0,0,0,.12);font-size:13px}
+    .message-log{height:240px;overflow:auto;padding:6px;border-radius:6px;background:rgba(0,0,0,.12);font-size:13px}
     .message-line{margin-bottom:6px}
     .room-controls{display:flex;gap:8px;align-items:center}
     .pokemon-list{display:flex;gap:8px;flex-wrap:wrap}
@@ -57,7 +57,6 @@
   "messagingSenderId": "438233977612",
   "appId": "1:438233977612:web:78da562a1c485970336f29"
 }</textarea>
-
         <div style="margin-top:8px" class="small">モード</div>
         <div class="flex">
           <button class="btn" id="btnLocal">CPU対戦（オフライン）</button>
@@ -71,7 +70,7 @@
 
         <div><strong>使用できるポケモン（6体から3体選択）</strong></div>
         <div class="pokemon-list" id="pokeSelector"></div>
-        <div class="small" style="margin-top:8px">選択後、各ポケモンに4つの技を割り当てます。</div>
+        <div class="small" style="margin-top:8px">選択後、各ポケモンに4つの技を割り当てます（番号で選択）。</div>
 
         <div style="margin-top:8px" class="flex">
           <button class="btn" id="btnAssign">技割当フェーズへ進む</button>
@@ -213,11 +212,12 @@
     opTeam: [],
     turnOwner:null,
     weather:null,
-    messages:[],
     isOnline:false,
     firebase:null,
     db:null,
-    roomRef:null
+    roomRef:null,
+    pendingAction:null,
+    _remoteAction:null
   };
 
   // UI wiring
@@ -272,15 +272,14 @@
     }
   }
 
-  btnAssign.addEventListener('click',()=>{
+  // 技割当を「番号入力方式」に変更
+  btnAssign.addEventListener('click',async ()=>{
     const picked = GAME._picked||[];
     if(picked.length!==3) return alert('まず3体選んでください');
-    // move assignment: simple prompt flow
     GAME.myTeam = picked.map(n=>createTeamMon(n));
-    assignMovesToTeam(GAME.myTeam).then(()=>{
-      alert('技割当完了。対戦を開始してください（CPUか部屋作成/参加）。');
-      renderHand();
-    });
+    await assignMovesToTeamByNumber(GAME.myTeam);
+    alert('技割当完了。対戦を開始してください（CPUか部屋作成/参加）。');
+    renderHand();
   });
 
   btnLocal.addEventListener('click',()=>{
@@ -288,42 +287,49 @@
     GAME.playerName = playerNameInput.value;
     GAME.opponentName = 'CPU';
     GAME.isOnline = false;
-    // fill opponent team randomly
     GAME.opTeam = randomCpuTeam();
     startBattle();
   });
 
   btnHost.addEventListener('click',()=>{
-    // initialize firebase and create room
     if(!playerNameInput.value) return alert('名前を入れてください');
     const cfg = parseConfig(firebaseConfigArea.value);
     if(!cfg) return alert('Firebase設定を正しく入力してください');
-    initFirebase(cfg).then(()=>{
-      createRoom(roomPwdInput.value || generatePwd()).then(refKey=>{
-        alert('部屋作成しました。パスワード: '+roomPwdInput.value || refKey + '\n別デバイスで参加してください');
+    initFirebase(cfg).then(async ()=>{
+      const pwd = roomPwdInput.value || generatePwd();
+      try{
+        const key = await createRoom(pwd);
+        alert('部屋作成しました。パスワード: '+pwd+'\n別デバイスで参加してください');
         GAME.playerName = playerNameInput.value;
         GAME.isOnline = true;
-        // host waits for challenger to join; our team must be assigned first
         if(!GAME.myTeam.length) return alert('まず3体選んで技を割り当ててください');
-        // push initial state
+        // push initial state (host's team)
         pushStateToRoom();
         listenRoom();
-      }).catch(e=>alert('作成失敗: '+e.message));
-    });
+      }catch(e){alert('作成失敗: '+e.message)}
+    }).catch(e=>alert('Firebase読み込み失敗: '+e.message));
   });
 
+  // 参加ボタンの修正：参加したら自分の情報（チームがあるならそれも）を送るようにする
   btnJoin.addEventListener('click',()=>{
+    if(!playerNameInput.value) return alert('名前を入れてください');
     const cfg = parseConfig(firebaseConfigArea.value);
     if(!cfg) return alert('Firebase設定を正しく入力してください');
-    initFirebase(cfg).then(()=>{
+    initFirebase(cfg).then(async ()=>{
       const pwd = roomPwdInput.value;
       if(!pwd) return alert('パスワードを入れてください');
-      joinRoom(pwd).then(ok=>{
+      try{
+        await joinRoom(pwd);
         GAME.playerName = playerNameInput.value || 'Player';
         GAME.isOnline = true;
+        // if team already assigned locally, push it under challenger
+        if(GAME.myTeam && GAME.myTeam.length){
+          await GAME.db.ref(GAME.roomRef+'/players/challenger').set({name:GAME.playerName, team:GAME.myTeam});
+        }
+        alert('参加しました。ホストが準備できたら対戦が始まります。');
         listenRoom();
-      }).catch(e=>alert('参加失敗: '+e.message));
-    });
+      }catch(e){alert('参加失敗: '+e.message)}
+    }).catch(e=>alert('Firebase読み込み失敗: '+e.message));
   });
 
   // create team member from base
@@ -333,26 +339,24 @@
     return {name,types:base.types.slice(),ability:base.ability,maxHP,curHP:maxHP,moves:[],stages:{atk:0,def:0,spa:0,spd:0,spe:0},status:null, asleepBehind:false};
   }
 
-  function assignMovesToTeam(team){
-    // sequential prompt: choose 4 moves from MOVES keys
-    return new Promise(resolve=>{
-      // simple UI: prompt-based for now
-      (async ()=>{
-        for(let mon of team){
-          const keys = Object.keys(MOVES);
-          const selected = [];
-          while(selected.length<4){
-            const choice = prompt(mon.name+' に覚えさせる技を選んでください（残り '+(4-selected.length)+'）\n候補: '+keys.join(', '));
-            if(!choice) return alert('技割当中断');
-            if(!MOVES[choice]){alert('存在しない技'); continue}
-            if(selected.includes(choice)) {alert('既に選択済み'); continue}
-            selected.push(choice);
-          }
-          mon.moves = selected.map(m=>({id:m,offPP:MOVES[m].pp||10}));
-        }
-        resolve();
-      })();
-    });
+  // 新しい技割当（番号選択）
+  async function assignMovesToTeamByNumber(team){
+    const keys = Object.keys(MOVES);
+    for(const mon of team){
+      const selected = [];
+      while(selected.length<4){
+        // build numbered list
+        let list = keys.map((k,i)=>`${i+1}: ${k}`).join('\n');
+        const choice = prompt(`${mon.name} に覚えさせる技を番号で選んでください（残り ${4-selected.length}）\n\n${list}`);
+        if(!choice) return alert('技割当中断');
+        const idx = parseInt(choice,10)-1;
+        if(isNaN(idx) || idx<0 || idx>=keys.length){ alert('無効な番号です'); continue; }
+        const moveName = keys[idx];
+        if(selected.includes(moveName)){ alert('既に選択済み'); continue; }
+        selected.push(moveName);
+      }
+      mon.moves = selected.map(m=>({id:m,offPP:MOVES[m].pp||10}));
+    }
   }
 
   function randomCpuTeam(){
@@ -360,7 +364,6 @@
     const pick = names.sort(()=>0.5-Math.random()).slice(0,3);
     return pick.map(n=>{
       const m = createTeamMon(n);
-      // choose random 4 moves for CPU from MOVES
       const keys = Object.keys(MOVES).sort(()=>0.5-Math.random()).slice(0,4);
       m.moves = keys.map(k=>({id:k,offPP:MOVES[k].pp||10}));
       return m;
@@ -369,8 +372,8 @@
 
   // Rendering helpers
   function renderHand(){
-    myNameEl.textContent = GAME.playerName;
-    opNameEl.textContent = GAME.opponentName;
+    myNameEl.textContent = GAME.playerName || '—';
+    opNameEl.textContent = GAME.opponentName || '—';
     myLeft.textContent = remainingCount(GAME.myTeam);
     opLeft.textContent = remainingCount(GAME.opTeam);
     renderActive();
@@ -389,7 +392,7 @@
     const my = GAME.myTeam[0];
     const op = GAME.opTeam[0];
     if(my){
-      myPokeName.textContent = my.name + '（' + GAME.playerName + '）';
+      myPokeName.textContent = my.name + '（' + (GAME.playerName||'プレイヤー') + '）';
       myHPtext.textContent = my.curHP + '/' + my.maxHP;
       myHPbar.style.width = (my.curHP/my.maxHP*100)+'%';
       myStatus.textContent = my.status||'—';
@@ -398,13 +401,13 @@
       my.moves.forEach((mv,idx)=>{
         const el = document.createElement('div');
         el.className='move';
-        el.textContent = mv.id + ' (' + (MOVES[mv.id].pp||'—') + ')';
+        el.textContent = `${idx+1}: ${mv.id} (${MOVES[mv.id].pp||'—'})`;
         el.addEventListener('click',()=>chooseMove(idx));
         movesArea.appendChild(el);
       });
     }
     if(op){
-      opPokeName.textContent = op.name + '（' + GAME.opponentName + '）';
+      opPokeName.textContent = op.name + '（' + (GAME.opponentName||'相手') + '）';
       opHPtext.textContent = op.curHP + '/' + op.maxHP;
       opHPbar.style.width = (op.curHP/op.maxHP*100)+'%';
       opStatus.textContent = op.status||'—';
@@ -417,45 +420,32 @@
   }
 
   function remainingCount(team){
-    return team.filter(m=>m.curHP>0).length;
+    return (team||[]).filter(m=>m.curHP>0).length;
   }
 
-  // Messages queue with timed display
+  // Message log: append (keep previous)
   function pushMessage(msg){
-    GAME.messages.push(msg);
-    // display with short intervals
-    showMessages();
-  }
-  let msgTimer=null;
-  function showMessages(){
-    if(msgTimer) return; // already playing
-    const lines = GAME.messages.slice();
-    messagesEl.innerHTML='';
-    let i=0;
-    msgTimer = setInterval(()=>{
-      if(i>=lines.length){ clearInterval(msgTimer); msgTimer=null; GAME.messages=[]; return; }
-      const d = document.createElement('div'); d.className='message-line'; d.textContent = lines[i]; messagesEl.prepend(d);
-      i++;
-    },500);
+    const line = document.createElement('div');
+    line.className = 'message-line';
+    line.textContent = msg;
+    messagesEl.appendChild(line);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   // Choosing move
   function chooseMove(idx){
-    // user selects a move; compute action for both sides (if CPU online, wait for opponent...)
     const action = {type:'move',who:'player',moveIdx:idx};
     if(GAME.isOnline){
-      // update room with chosen action
       GAME.pendingAction = action;
       pushStateToRoom();
+      pushMessage('技を選択しました。相手を待っています...');
     } else {
-      // CPU picks
       const cpuAction = cpuChooseMove();
       resolveTurn(action,cpuAction);
     }
   }
 
   function cpuChooseMove(){
-    // simple: random available move
     const mvlist = GAME.opTeam[0].moves;
     const idx = Math.floor(Math.random()*mvlist.length);
     return {type:'move',who:'cpu',moveIdx:idx};
@@ -463,47 +453,38 @@
 
   function switchTo(index){
     if(index===0) return; // already active
-    // ensure target alive
     if(GAME.myTeam[index].curHP<=0) return alert('そのポケモンは戦闘不能です');
-    // switch immediately when not online
-    if(GAME.isOnline){ GAME.pendingAction = {type:'switch',who:'player',to:index}; pushStateToRoom(); }
+    if(GAME.isOnline){ GAME.pendingAction = {type:'switch',who:'player',to:index}; pushStateToRoom(); pushMessage('交代を選択しました。相手を待っています...'); }
     else { const cpuAct = cpuChooseMove(); resolveTurn({type:'switch',who:'player',to:index}, cpuAct); }
   }
 
   // Core turn resolution simplified but captures speed, priority, abilities
   function resolveTurn(actA, actB){
-    // assemble actions in order by priority and speed
     const a = actA.who==='player'?{actor:'player',action:actA,mon:GAME.myTeam[0]}:{actor:'cpu',action:actA,mon:GAME.opTeam[0]};
     const b = actB.who==='cpu'?{actor:'cpu',action:actB,mon:GAME.opTeam[0]}:{actor:'player',action:actB,mon:GAME.myTeam[0]};
 
-    // compute effective priority
     const acts = [a,b];
     acts.sort((x,y)=>{
       const px = x.action.moveIdx!==undefined? (MOVES[x.mon.moves[x.action.moveIdx].id].priority||0) : 0;
       const py = y.action.moveIdx!==undefined? (MOVES[y.mon.moves[y.action.moveIdx].id].priority||0) : 0;
-      if(px!==py) return py-px; // higher priority first
-      // then speed
+      if(px!==py) return py-px;
       const sx = effectiveStat(x.mon,'spe');
       const sy = effectiveStat(y.mon,'spe');
-      return sy-sx; // faster first
+      return sy-sx;
     });
 
-    // execute in order
     (async ()=>{
       for(const turn of acts){
         if(checkBattleEnd()) return;
         const act = turn.action;
         if(act.type==='move'){
-          // verify user/mon is alive
           if(turn.mon.curHP<=0){ pushMessage(`${turn.mon.name}（${turn.actor==='player'?GAME.playerName:GAME.opponentName}）は戦闘不能で行動できない！`); continue; }
           const mv = turn.mon.moves[act.moveIdx];
           await applyMove(turn, mv);
-          // check faint and auto-switch for CPU
           autoSwitchIfNeeded();
           renderHand();
         } else if(act.type==='switch'){
           if(turn.actor==='player'){
-            // bring chosen mon to front
             const idx = act.to;
             const mon = GAME.myTeam.splice(idx,1)[0];
             GAME.myTeam.unshift(mon);
@@ -517,10 +498,12 @@
         }
         await sleep(300);
       }
-      // end of turn: apply residuals (poison etc)
       applyEndOfTurn();
       renderHand();
       checkBattleEnd();
+      // Clear pending actions after resolution
+      GAME.pendingAction = null; GAME._remoteAction = null;
+      if(GAME.isOnline) pushStateToRoom();
     })();
   }
 
@@ -534,7 +517,6 @@
     pushMessage(`${user.name}（${userName}）は ${mvObj.id} を使った！`);
     await sleep(400);
 
-    // Status moves
     if(move.category==='status'){
       if(move.healPct){
         const heal = Math.floor(user.maxHP * move.healPct);
@@ -552,25 +534,19 @@
       return;
     }
 
-    // accuracy check
     const acc = move.acc||100;
     if(Math.random()*100 > acc){ pushMessage('しかし、外れた！'); return; }
 
-    // critical check: simple rate
     let crit = Math.random() < 0.0625;
-    // ability modifications for crit etc
     if(user.ability==='きょううん' && Math.random()<0.12) crit=true;
-    if(target.ability==='カブトアーマー') crit=false; // cannot be crit
-    // special 'ひとでなし' guarantees crit when target poisoned
+    if(target.ability==='カブトアーマー') crit=false;
     if(user.ability==='ひとでなし' && target.status==='どく') crit=true;
 
-    // damage calc (simplified gen formula)
     const level=50;
     const power = move.power||0;
     const A = move.category==='physical'? effectiveStat(user,'atk') : effectiveStat(user,'spa');
     const D = move.category==='physical'? effectiveStat(target,'def') : effectiveStat(target,'spd');
     let base = Math.floor(Math.floor((Math.floor((2*level/5)+2)*power*A)/D)/50)+2;
-    // modifiers: STAB
     const moveType = move.type;
     const stab = user.types.includes(moveType)?1.5:1;
     const tmult = typeMultiplier(moveType, target.types)||1;
@@ -586,24 +562,17 @@
     if(tmult>0 && tmult<1) sfx += ' 効果はいまひとつだ。';
     pushMessage(`${target.name}（${targetName}）に ${dmg} のダメージ！` + sfx);
 
-    // recoil
     if(move.recoil){
       const rec = Math.floor(dmg * move.recoil);
       user.curHP = clamp(user.curHP - rec,0,user.maxHP);
       pushMessage(`${user.name}（${userName}）は反動で ${rec} のダメージ！`);
     }
 
-    // flinch
     if(move.flinch && Math.random() < move.flinch){ target.fluffed = true; }
-
-    // paralyze chance
     if(move.par && Math.random()<move.par){ target.status = 'まひ'; pushMessage(`${target.name}（${targetName}）はまひした！`); }
-
-    // decrease accuracy or other side effects omitted for brevity
   }
 
   function effectiveStat(mon,stat){
-    // convert stat name to attribute
     const map = {atk:'atk',def:'def',spa:'spa',spd:'spd',spe:'spe'};
     const base = POKEMON[mon.name][map[stat]];
     const stage = mon.stages[map[stat]]||0;
@@ -612,13 +581,12 @@
   }
 
   function autoSwitchIfNeeded(){
-    // if front fainted, bring next available
-    if(GAME.opTeam[0].curHP<=0){
+    if(GAME.opTeam[0] && GAME.opTeam[0].curHP<=0){
       pushMessage(`${GAME.opTeam[0].name}（${GAME.opponentName}）は倒れた！`);
       const idx = GAME.opTeam.findIndex(m=>m.curHP>0);
       if(idx>=0){ const mon = GAME.opTeam.splice(idx,1)[0]; GAME.opTeam.unshift(mon); pushMessage(`${mon.name}（${GAME.opponentName}）を自動でくりだした！`); }
     }
-    if(GAME.myTeam[0].curHP<=0){
+    if(GAME.myTeam[0] && GAME.myTeam[0].curHP<=0){
       pushMessage(`${GAME.myTeam[0].name}（${GAME.playerName}）は倒れた！`);
       const idx = GAME.myTeam.findIndex(m=>m.curHP>0);
       if(idx>=0){ const mon = GAME.myTeam.splice(idx,1)[0]; GAME.myTeam.unshift(mon); pushMessage(`${mon.name}（${GAME.playerName}）を自動でくりだした！`); }
@@ -626,7 +594,6 @@
   }
 
   function applyEndOfTurn(){
-    // poison, etc placeholder
     [GAME.myTeam[0], GAME.opTeam[0]].forEach(mon=>{
       if(!mon) return;
       if(mon.status==='どく'){
@@ -652,16 +619,11 @@
 
   // Simple helpers
   function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-
-  function parseConfig(txt){
-    try{ return JSON.parse(txt); }catch(e){return null}
-  }
-
+  function parseConfig(txt){ try{ return JSON.parse(txt); }catch(e){return null} }
   function generatePwd(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
 
   // --- Firebase integration (Realtime DB) ---
   async function initFirebase(cfg){
-    // load firebase SDK dynamically
     if(window.firebase && window.firebase.apps && window.firebase.apps.length){
       // already
     } else {
@@ -672,13 +634,13 @@
         const s=document.createElement('script'); s.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s);
       });
     }
-    firebase.initializeApp(cfg);
+    if(!window.firebase.apps || !window.firebase.apps.length) firebase.initializeApp(cfg);
     GAME.firebase = firebase; GAME.db = firebase.database();
   }
 
   async function createRoom(pwd){
     const key = pwd || generatePwd();
-    const room = {host:GAME.playerName,players:{host:{name:GAME.playerName}},state:{}};
+    const room = {host:GAME.playerName,players:{host:{name:GAME.playerName,team:GAME.myTeam||[]}},state:{}};
     await GAME.db.ref('rooms/'+key).set(room);
     GAME.roomRef = 'rooms/'+key;
     return key;
@@ -687,8 +649,7 @@
   async function joinRoom(pwd){
     const snap = await GAME.db.ref('rooms/'+pwd).get();
     if(!snap.exists()) throw new Error('見つかりません');
-    const room = snap.val();
-    // register as challenger
+    // register as challenger (basic info)
     await GAME.db.ref('rooms/'+pwd+'/players/challenger').set({name:GAME.playerName});
     GAME.roomRef = 'rooms/'+pwd;
     return true;
@@ -705,38 +666,47 @@
     GAME.db.ref(GAME.roomRef+'/state').on('value',snap=>{
       const val = snap.val();
       if(!val) return;
-      // simple sync: if we are challenger, opponent data becomes host
-      if(val.playerName && val.playerName!==GAME.playerName){
-        GAME.opponentName = val.playerName; // host's name
-      }
-      // if challenger and host both pushed teams, start battle
-      if(!GAME.myTeam.length && val.opTeam && val.myTeam){
-        // choose where to put our team
-      }
-      // handle pending actions
+      if(val.playerName && val.playerName!==GAME.playerName){ GAME.opponentName = val.playerName; }
+      // if both teams present in players node, set opTeam appropriately
+      GAME.db.ref(GAME.roomRef+'/players').get().then(psnap=>{
+        const players = psnap.val()||{};
+        if(players.host && players.challenger){
+          // determine which side we are
+          if(players.host.name === GAME.playerName){
+            // we are host, opponent is challenger
+            if(players.challenger.team) GAME.opTeam = players.challenger.team;
+          } else if(players.challenger.name === GAME.playerName){
+            if(players.host.team) GAME.opTeam = players.host.team;
+          }
+          // if opponent's name available, set
+          GAME.opponentName = (players.host.name===GAME.playerName? players.challenger.name : players.host.name) || GAME.opponentName;
+        }
+      });
+
+      // pending action handling
       if(val.pendingAction){
-        // when both actions present, resolve
-        if(GAME._remoteAction && GAME._remoteAction.actor!==val.pendingAction.who){
-          // both present -> resolve
+        if(GAME._remoteAction && GAME._remoteAction.who!==val.pendingAction.who){
           const local = GAME.pendingAction || null;
           const remote = val.pendingAction;
-          if(local){
-            // map to internal action objects
-            const a = local;
-            const b = remote;
-            resolveTurn(a,b);
-            GAME.db.ref(GAME.roomRef+'/state/pendingAction').remove();
-            GAME.pendingAction = null;
-            GAME._remoteAction = null;
-          } else {
-            // store remote
-            GAME._remoteAction = val.pendingAction;
-          }
+          if(local){ resolveTurn(local,remote); GAME.db.ref(GAME.roomRef+'/state/pendingAction').remove(); GAME.pendingAction=null; GAME._remoteAction=null; }
+          else GAME._remoteAction = remote;
         } else {
           GAME._remoteAction = val.pendingAction;
         }
       }
+
+      renderHand();
     });
+  }
+
+  // startBattle: sets up local battle flow
+  function startBattle(){
+    if(!GAME.myTeam || GAME.myTeam.length===0) return alert('まず技を割り当てたチームを用意してください');
+    if(!GAME.opTeam || GAME.opTeam.length===0) return alert('相手のチームが設定されていません');
+    pushMessage('バトル開始！');
+    renderHand();
+    // decide first turn arbitrarily (could be enhanced)
+    GAME.turnOwner = 'player';
   }
 
   // initial render
@@ -745,6 +715,3 @@
   </script>
 </body>
 </html>
-
-
-
