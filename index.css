@@ -1,0 +1,33 @@
+  :root{--bg:#f4f7fb;--card:#fff;--accent:#2b6df6;--muted:#666}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Meiryo,Arial;background:var(--bg);margin:0;padding:18px;color:#111}
+  .container{max-width:1100px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center}
+  h1{font-size:18px;margin:0}
+  .panel{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(20,30,50,0.06);margin-top:12px}
+  .flex{display:flex;gap:12px}
+  .col{flex:1}
+  label{display:block;font-size:13px;margin-bottom:6px}
+  input,select,button{padding:8px;border-radius:6px;border:1px solid #ddd;font-size:14px}
+  button{background:var(--accent);color:white;border:none;cursor:pointer}
+  .small{font-size:13px}
+  .muted{color:var(--muted)}
+  /* battle UI */
+  .battle{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .box{background:#fff;padding:12px;border-radius:10px}
+  .hpbar{height:12px;background:#eee;border-radius:8px;overflow:hidden}
+  .hpfill{height:100%;background:linear-gradient(90deg,#62c370,#2b6df6)}
+  .moves{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .log{height:150px;overflow:auto;background:#111;color:#fff;padding:8px;border-radius:6px;font-size:13px;display:flex;flex-direction:column-reverse}
+  .pokelist{display:flex;flex-direction:column;gap:6px;margin-top:8px} /* 縦に並べる（各行は横書き） */
+  .pokechip{padding:8px;border-radius:8px;background:#f1f5f9;border:1px solid #e6eef9;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+  .status{font-size:12px;color:var(--muted);margin-top:6px}
+  .row{display:flex;justify-content:space-between;align-items:center}
+  .center{text-align:center}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  .move-btn{padding:10px;border-radius:8px;border:1px solid #ddd;background:#fafafa;cursor:pointer}
+  /* party chips horizontal when inside the battle UI */
+  .party-row{display:flex;gap:6px;margin-top:8px}
+  .party-chip{padding:6px 8px;border-radius:8px;background:#f1f5f9;border:1px solid #e6eef9;cursor:pointer}
+  .right-col{display:flex;flex-direction:column;gap:8px}
+  .small-muted{font-size:12px;color:#888}
+  footer{margin-top:14px}
