@@ -179,17 +179,17 @@
   // Type chart minimal for types present. multiplier: 2,0.5,0
   const TYPE_CHART = {
     "ノーマル":{"いわ":0.5,"ゴースト":0},
-    "みず":{},
-    "でんき":{"じめん":0},
-    "くさ":{"ほのお":0.5,"みず":2},
-    "どく":{},
+    "みず":{"じめん":2,"いわ":2,"みず":0.5},
+    "でんき":{"じめん":0,"みず":2},
+    "くさ":{"ほのお":0.5,"いわ":2,"みず":2,"じめん":2},
+    "どく":{"くさ":2,"フェアリー":2,"どく":0.5,"じめん":0.5,"いわ":0.5,"フェアリー":0.5},
     "じめん":{"でんき":2,"ひこう":0},
     "ひこう":{"くさ":2,"でんき":0.5},
-    "エスパー":{"あく":0, "どく":0.5},
+    "エスパー":{"あく":0, "どく":2},
     "むし":{"エスパー":2,"あく":2,"フェアリー":0.5},
     "いわ":{"むし":2,"ひこう":2},
     "あく":{"エスパー":2,"ゴースト":2},
-    "フェアリー":{"あく":2}
+    "フェアリー":{"あく":2,"どく":0.5}
   };
 
   // Utility functions
@@ -278,7 +278,7 @@
     if(picked.length!==3) return alert('まず3体選んでください');
     GAME.myTeam = picked.map(n=>createTeamMon(n));
     await assignMovesToTeamByNumber(GAME.myTeam);
-    alert('技割当完了。対戦を開始してください（CPUか部屋作成/参加）。');
+    alert('技の割当が完了しました。対戦を開始できます（CPUか部屋作成/参加）。');
     renderHand();
   });
 
@@ -348,11 +348,11 @@
         // build numbered list
         let list = keys.map((k,i)=>`${i+1}: ${k}`).join('\n');
         const choice = prompt(`${mon.name} に覚えさせる技を番号で選んでください（残り ${4-selected.length}）\n\n${list}`);
-        if(!choice) return alert('技割当中断');
+        if(!choice) return alert('技の割り当てが中断されました');
         const idx = parseInt(choice,10)-1;
         if(isNaN(idx) || idx<0 || idx>=keys.length){ alert('無効な番号です'); continue; }
         const moveName = keys[idx];
-        if(selected.includes(moveName)){ alert('既に選択済み'); continue; }
+        if(selected.includes(moveName)){ alert('既に選択済みです'); continue; }
         selected.push(moveName);
       }
       mon.moves = selected.map(m=>({id:m,offPP:MOVES[m].pp||10}));
@@ -478,7 +478,7 @@
         if(checkBattleEnd()) return;
         const act = turn.action;
         if(act.type==='move'){
-          if(turn.mon.curHP<=0){ pushMessage(`${turn.mon.name}（${turn.actor==='player'?GAME.playerName:GAME.opponentName}）は戦闘不能で行動できない！`); continue; }
+          if(turn.mon.curHP<=0){ pushMessage(`${turn.mon.name}（${turn.actor==='player'?GAME.playerName:GAME.opponentName}）はたおれた！`); continue; }
           const mv = turn.mon.moves[act.moveIdx];
           await applyMove(turn, mv);
           autoSwitchIfNeeded();
@@ -488,12 +488,12 @@
             const idx = act.to;
             const mon = GAME.myTeam.splice(idx,1)[0];
             GAME.myTeam.unshift(mon);
-            pushMessage(`${mon.name}（${GAME.playerName}）をくりだした！`);
+            pushMessage(`${GAME.playerName}は${mon.name}をくりだした！`);
           } else {
             const idx = act.to;
             const mon = GAME.opTeam.splice(idx,1)[0];
             GAME.opTeam.unshift(mon);
-            pushMessage(`${mon.name}（${GAME.opponentName}）をくりだした！`);
+            pushMessage(`${GAME.opponentName}は${mon.name}をくりだした！`);
           }
         }
         await sleep(300);
@@ -514,7 +514,7 @@
     const userName = turn.actor==='player'?GAME.playerName:GAME.opponentName;
     const targetName = turn.actor==='player'?GAME.opponentName:GAME.playerName;
 
-    pushMessage(`${user.name}（${userName}）は ${mvObj.id} を使った！`);
+    pushMessage(`${user.name}（${userName}）の ${mvObj.id} ！`);
     await sleep(400);
 
     if(move.category==='status'){
@@ -529,13 +529,13 @@
       }
       if(move.restore==='sleep'){
         user.status = 'ねむり';
-        pushMessage(`${user.name}（${userName}）は眠った！`);
+        pushMessage(`${user.name}（${userName}）はぐうぐう眠っている！`);
       }
       return;
     }
 
     const acc = move.acc||100;
-    if(Math.random()*100 > acc){ pushMessage('しかし、外れた！'); return; }
+    if(Math.random()*100 > acc){ pushMessage('しかし、あたらなかった！'); return; }
 
     let crit = Math.random() < 0.0625;
     if(user.ability==='きょううん' && Math.random()<0.12) crit=true;
@@ -558,8 +558,8 @@
 
     let sfx = '';
     if(crit) sfx += ' 急所に当たった！';
-    if(tmult>=2) sfx += ' 効果は抜群だ！';
-    if(tmult>0 && tmult<1) sfx += ' 効果はいまひとつだ。';
+    if(tmult>=2) sfx += ' 効果はばつぐんだ！';
+    if(tmult>0 && tmult<1) sfx += ' 効果はいまひとつのようだ。';
     pushMessage(`${target.name}（${targetName}）に ${dmg} のダメージ！` + sfx);
 
     if(move.recoil){
@@ -584,12 +584,12 @@
     if(GAME.opTeam[0] && GAME.opTeam[0].curHP<=0){
       pushMessage(`${GAME.opTeam[0].name}（${GAME.opponentName}）は倒れた！`);
       const idx = GAME.opTeam.findIndex(m=>m.curHP>0);
-      if(idx>=0){ const mon = GAME.opTeam.splice(idx,1)[0]; GAME.opTeam.unshift(mon); pushMessage(`${mon.name}（${GAME.opponentName}）を自動でくりだした！`); }
+      if(idx>=0){ const mon = GAME.opTeam.splice(idx,1)[0]; GAME.opTeam.unshift(mon); pushMessage(`${GAME.opponentName}は${mon.name}をくりだした！`); }
     }
     if(GAME.myTeam[0] && GAME.myTeam[0].curHP<=0){
       pushMessage(`${GAME.myTeam[0].name}（${GAME.playerName}）は倒れた！`);
       const idx = GAME.myTeam.findIndex(m=>m.curHP>0);
-      if(idx>=0){ const mon = GAME.myTeam.splice(idx,1)[0]; GAME.myTeam.unshift(mon); pushMessage(`${mon.name}（${GAME.playerName}）を自動でくりだした！`); }
+      if(idx>=0){ const mon = GAME.myTeam.splice(idx,1)[0]; GAME.myTeam.unshift(mon); pushMessage(`${GAME.playerName}は${mon.name}をくりだした！`); }
     }
   }
 
@@ -715,3 +715,4 @@
   </script>
 </body>
 </html>
+
