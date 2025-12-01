@@ -26,8 +26,8 @@
   .hpbar > i { display:block; height:100%; background:linear-gradient(90deg,#2b8cff,#1f9b5a); }
   .muted { color:#777; font-size:13px; }
   .moves { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
-  .move-btn{ padding:6px 8px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:13px; color: #000; background-color:#202060 }
-  .move-btn.disabled { opacity:0.45; pointer-events:none; }
+  .move-btn{ padding:6px 8px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:13px; color: #000; background-color:#cfcfcf }
+  .move-btn.disabled { opacity:0.45; pointer-events:auto; }
   .center { text-align:center; }
   #status-row { display:flex; gap:8px; align-items:center; }
   .log-entry { margin-bottom:6px; }
@@ -300,16 +300,16 @@ function onSelectPoke(name, div){
     return;
   }
   // 初期技はそのポケモンのタイプに基づいて選択（ランダムに4つ、または固定）
-  //const availableMoves = Object.keys(MOVE_DB).filter(m=>{
+  const availableMoves = Object.keys(MOVE_DB).filter(m=>{
     // そのポケモンのタイプを中心に優先して選ぶ（単純化）
     const t = MOVE_DB[m].type;
     return POKEMON_DATA[name].types.includes(t) || Math.random()<0.2;
   });
   const chosen = [];
-  while(chosen.length<4 && availableMoves.length>0){
+  /*while(chosen.length<4 && availableMoves.length>0){
     const idx = Math.floor(Math.random()*availableMoves.length);
     chosen.push(availableMoves.splice(idx,1)[0]);
-  }
+  }*/
   const baseStats = POKEMON_DATA[name].stats;
   const p = {
     name, moves: chosen.slice(0,4),
@@ -505,6 +505,7 @@ async function startBattle(roomId){
     });
     battle.players[pid] = { id: pid, name: p.name, party: normalized, activeIndex:0, queuedAction: null };
   });
+  battle.waitingFor = client.id;
   await roomRef.update({ state:'started', battle });
   appendRoomMessage(roomId, client.name, 'バトル開始！');
 }
