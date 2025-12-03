@@ -479,20 +479,29 @@ function resolveTurn(state) {
 
 
     // ★ここが変更点：瀕死チェックとフェーズ分岐★
-    state.p1.action = null;
+state.p1.action = null;
     state.p2.action = null;
     state.log = [...state.log, ...log];
     
-    // どちらかが倒れていたら「強制交代フェーズ」へ移行
-    const p1Dead = state.p1.team[state.p1.activeIndex].currentHp <= 0;
-    const p2Dead = state.p2.team[state.p2.activeIndex].currentHp <= 0;
+    // 生存数カウント
+    const p1Alive = state.p1.team.filter(p => p.currentHp > 0).length;
+    const p2Alive = state.p2.team.filter(p => p.currentHp > 0).length;
 
-    if (p1Dead || p2Dead) {
-        state.phase = "forced_switch"; 
-        // ターン数は増やさない
+    if (p1Alive === 0 || p2Alive === 0) {
+        state.phase = "finished";
+        state.winner = p1Alive > 0 ? "p1" : "p2";
+        state.log.push(`勝負あり！ ${state[state.winner].name} の勝ち！`);
     } else {
-        state.phase = "ready";
-        state.turn += 1;
+        // どちらかが倒れていて、かつ全滅はしていない -> 強制交代
+        const p1ActiveDead = state.p1.team[state.p1.activeIndex].currentHp <= 0;
+        const p2ActiveDead = state.p2.team[state.p2.activeIndex].currentHp <= 0;
+
+        if (p1ActiveDead || p2ActiveDead) {
+            state.phase = "forced_switch"; 
+        } else {
+            state.phase = "ready";
+            state.turn += 1;
+        }
     }
 
     db.ref("rooms/" + roomId).set(state);
@@ -513,7 +522,7 @@ function renderBattle() {
     const enemyData = battleState[enemySide];
     const myPoke = myData.team[myData.activeIndex];
     const enemyPoke = enemyData.team[enemyData.activeIndex];
-
+    
     // 名前・HP・ステータス更新
     document.getElementById("my-name").innerText = myPoke.name + ` (Lv.50)`;
     document.getElementById("enemy-name").innerText = enemyPoke.name + ` (Lv.50)`;
@@ -521,6 +530,35 @@ function renderBattle() {
     updateHpBar("enemy", enemyPoke.currentHp, enemyPoke.maxHp);
     renderStatus("my", myPoke.status);
     renderStatus("enemy", enemyPoke.status);
+
+// ★ここに追加：バトル終了時の表示★
+    if (battleState.phase === "finished") {
+        document.getElementById("battle-log").innerHTML = 
+            battleState.log.map(l => `<div class="log-entry">${l}</div>`).join("");
+        document.getElementById("battle-log").scrollTop = document.getElementById("battle-log").scrollHeight;
+
+        const isWin = battleState.winner === mySide;
+        const resultHtml = `
+            <div style="text-align:center; padding: 20px;">
+                <h2 style="color: ${isWin ? 'red' : 'blue'}; font-size: 2em;">
+                    ${isWin ? "YOU WIN!" : "YOU LOSE..."}
+                </h2>
+                <p>対戦ありがとうございました。</p>
+                <button onclick="returnToTeamSelect()" style="padding:15px; font-size:1.2em;">
+                    技構成を維持して編成画面へ戻る
+                </button>
+            </div>
+        `;
+        
+        // 画面全体を結果表示で覆う、あるいは操作パネルを置き換える
+        document.getElementById("action-panel").classList.remove("hidden");
+        document.getElementById("action-panel").innerHTML = resultHtml;
+        document.getElementById("switch-menu").classList.add("hidden");
+        return;
+    }
+
+
+
 
     // ログ表示
     const logDiv = document.getElementById("battle-log");
@@ -694,6 +732,89 @@ function submitAction(type, moveName, switchIdx) {
     if (type === "switch") action.idx = switchIdx;
 
     db.ref(`rooms/${roomId}/${mySide}/action`).set(action);
+}
+
+function returnToTeamSelect() {
+    // 1. Firebase監視を解除 (古い部屋の更新を受け取らないようにする)
+    if (unsubscribe) {
+        db.ref("rooms/" + roomId).off(); // リスナー解除
+        unsubscribe = null;
+    }
+
+    // 2. チーム情報の回復 (HPなどを初期値に戻す)
+    myTeam.forEach(p => {
+        p.currentHp = p.maxHp;
+        // なつうみ以外はステータス異常解除
+        p.status = (p.ability === "ぜったいねむり") ? "sleep" : null;
+        // ランク補正リセット
+        p.statStages = {at:0, df:0, sa:0, sd:0, sp:0, acc:0, eva:0};
+    });
+
+    // 3. 画面切り替え
+    document.getElementById("screen-battle").classList.add("hidden");
+    document.getElementById("screen-team").classList.remove("hidden");
+    
+    // バトル画面のパネルを初期状態に戻しておく（「YOU WIN」などの消去）
+    document.getElementById("action-panel").innerHTML = `
+        <h4>行動選択</h4>
+        <div class="move-grid" id="move-buttons"></div>
+        <button id="switch-btn" onclick="showSwitchMenu()" style="background:#2196F3">ポケモン交代</button>
+    `;
+
+    // 4. チーム編成画面を描画し、直前の構成を反映させる
+    renderTeamBuilder(myTeam); 
+}
+
+// 既存の renderTeamBuilder を改良して、引数を受け取れるようにします
+function renderTeamBuilder(prefillTeam = null) {
+    const container = document.getElementById("team-builder-container");
+    container.innerHTML = "";
+    
+    // 選択済みのIDリスト、技マップを作成
+    const selectedIds = prefillTeam ? prefillTeam.map(p => p.id) : [];
+    const movesMap = {}; // { pokemonId: [move1, move2, move3, move4] }
+    
+    if (prefillTeam) {
+        prefillTeam.forEach(p => {
+            movesMap[p.id] = p.moves;
+        });
+    }
+
+    Object.keys(POKEMON_DB).forEach(id => {
+        const pkmn = POKEMON_DB[id];
+        const isChecked = selectedIds.includes(id) ? "checked" : "";
+        const div = document.createElement("div");
+        div.className = "pokemon-select";
+        
+        // 技選択のプルダウンを4つ作成
+        let movesHtml = "";
+        const prefillMoves = movesMap[id] || ["", "", "", ""]; // 選択済み技リスト、なければ空
+
+        for(let i=0; i<4; i++){
+            // 選択されている技があれば selected 属性をつける
+            const currentMove = prefillMoves[i] || "";
+            
+            const options = `
+                <option value="">技${i+1}を選択</option>
+                ${MOVES_DB.map(m => {
+                    const selected = (m.name === currentMove) ? "selected" : "";
+                    return `<option value="${m.name}" ${selected}>${m.name} (${m.type})</option>`;
+                }).join('')}
+            `;
+            
+            movesHtml += `<select class="move-select" data-id="${id}">${options}</select>`;
+        }
+
+        div.innerHTML = `
+            <label>
+                <input type="checkbox" class="pkmn-check" value="${id}" ${isChecked}> 
+                <strong>${pkmn.name}</strong> (${pkmn.types.join("/")})
+            </label>
+            <div class="stat-preview">特性: ${pkmn.ability} | H:${pkmn.stats.hp} A:${pkmn.stats.at} B:${pkmn.stats.df} C:${pkmn.stats.sa} D:${pkmn.stats.sd} S:${pkmn.stats.sp}</div>
+            <div style="margin-top:5px; display:grid; grid-template-columns:1fr 1fr; gap:5px;">${movesHtml}</div>
+        `;
+        container.appendChild(div);
+    });
 }
 
 </script>
