@@ -135,12 +135,12 @@ const db = firebase.database();
 
 /* --- GAME DATA --- */
 const POKEMON_DB = {
-    1: { name: "そうじ", types: ["むし", "じめん"], ability: "カブトアーマー", stats: {hp:180, at:75, df:90, sa:150, sd:60, sp:90} },
-    2: { name: "しょうき", types: ["ひこう", "エスパー"], ability: "たんじゅん", stats: {hp:270, at:95, df:100, sa:105, sd:120, sp:80} },
+    1: { name: "そうじ", types: ["むし", "じめん"], ability: "カブトアーマー", stats: {hp:160, at:70, df:95, sa:145, sd:55, sp:90} },
+    2: { name: "しょうき", types: ["ひこう", "エスパー"], ability: "たんじゅん", stats: {hp:270, at:90, df:100, sa:105, sd:120, sp:80} },
     3: { name: "たかす", types: ["みず", "どく"], ability: "ひとでなし", stats: {hp:255, at:100, df:95, sa:93, sd:110, sp:85} },
-    4: { name: "じゅん", types: ["ノーマル", "フェアリー"], ability: "きょううん", stats: {hp:290, at:110, df:110, sa:80, sd:100, sp:90} },
-    5: { name: "たけしげ", types: ["でんき", "いわ"], ability: "てんねん", stats: {hp:260, at:125, df:110, sa:30, sd:75, sp:75} },
-    6: { name: "なつうみ", types: ["あく", "エスパー"], ability: "ぜったいねむり", stats: {hp:230, at:50, df:70, sa:120, sd:100, sp:108} }
+    4: { name: "じゅん", types: ["ノーマル", "フェアリー"], ability: "きょううん", stats: {hp:290, at:110, df:110, sa:85, sd:90, sp:90} },
+    5: { name: "たけしげ", types: ["でんき", "いわ"], ability: "てんねん", stats: {hp:260, at:125, df:100, sa:30, sd:75, sp:75} },
+    6: { name: "なつうみ", types: ["あく", "エスパー"], ability: "ぜったいねむり", stats: {hp:230, at:50, df:80, sa:120, sd:100, sp:108} }
 };
 
 // 簡易化のため、主要技のみ詳細定義。他は汎用データとして扱う。
@@ -156,8 +156,6 @@ const MOVES_DB = [
     // でんき
     { name: "10万ボルト", type: "でんき", cat: "spe", pow: 90, acc: 100 },
     { name: "ワイルドボルト", type: "でんき", cat: "phy", pow: 90, acc: 100 },
-    { name: "かみなりのや", type: "でんき", cat: "spe", pow: 125, acc: 75 },
-    { name: "くにひこのいかずち", type: "でんき", cat: "spe", pow:999 , acc: 30 },
     // くさ
     { name: "リーフストーム", type: "くさ", cat: "spe", pow: 130, acc: 90 },
     { name: "ソーラービーム", type: "くさ", cat: "spe", pow: 120, acc: 100 },
