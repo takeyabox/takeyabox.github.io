@@ -47,23 +47,25 @@
 
 <div class="container">
     <div id="screen-login">
-        <h1>ポケモンバトル Online</h1>
+        <h1>新富STREET謹製ポケモンバトル</h1>
         <div class="form-group">
             <label>プレイヤー名</label>
             <input type="text" id="player-name-input" placeholder="名前を入力">
         </div>
-        <button onclick="goToTeamSelect()">次へ</button>
+        <button onclick="goToTeamSelect()">編成に進む</button>
     </div>
 
     <div id="screen-team" class="hidden">
-        <h2>チーム編成 (3体選出)</h2>
+        <h2>チーム編成</h2>
+        <p>手持ちポケモン3体選出し、各ポケモンに覚えさせる技を4つずつ選んでください。</p>
         <div id="team-builder-container"></div>
-        <button onclick="finalizeTeam()">チーム決定 & ロビーへ</button>
+        <button onclick="finalizeTeam()">チームを決定する</button>
     </div>
 
     <div id="screen-lobby" class="hidden">
         <h2>対戦ロビー</h2>
-        <p>ようこそ、<span id="display-name"></span>さん</p>
+        <h3>ようこそ、<span id="display-name"></span>さん</h3>
+        <p>パスワードを決めて部屋を作成するか、教えても立ったパスワードを入力し、部屋に入ってください。/p>
         <div class="form-group">
             <label>部屋を作成 (パスワードを設定)</label>
             <input type="text" id="create-room-pass" placeholder="パスワード">
