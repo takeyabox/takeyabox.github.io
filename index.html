@@ -133,12 +133,12 @@ const db = firebase.database();
 
 /* --- GAME DATA --- */
 const POKEMON_DB = {
-    1: { name: "そうじ", types: ["むし", "じめん"], ability: "カブトアーマー", stats: {hp:65, at:55, df:58, sa:75, sd:60, sp:90} },
-    2: { name: "しょうき", types: ["ひこう", "エスパー"], ability: "たんじゅん", stats: {hp:95, at:95, df:95, sa:105, sd:100, sp:80} },
-    3: { name: "たかす", types: ["みず", "どく"], ability: "ひとでなし", stats: {hp:78, at:100, df:85, sa:93, sd:90, sp:85} },
-    4: { name: "じゅん", types: ["ノーマル", "フェアリー"], ability: "きょううん", stats: {hp:108, at:120, df:110, sa:80, sd:95, sp:115} },
-    5: { name: "たけしげ", types: ["でんき", "いわ"], ability: "てんねん", stats: {hp:90, at:135, df:105, sa:30, sd:75, sp:70} },
-    6: { name: "なつうみ", types: ["あく", "エスパー"], ability: "ぜったいねむり", stats: {hp:70, at:60, df:65, sa:113, sd:70, sp:108} }
+    1: { name: "そうじ", types: ["むし", "じめん"], ability: "カブトアーマー", stats: {hp:65*2, at:45, df:48, sa:95, sd:50, sp:90} },
+    2: { name: "しょうき", types: ["ひこう", "エスパー"], ability: "たんじゅん", stats: {hp:95*2, at:95, df:95, sa:105, sd:100, sp:80} },
+    3: { name: "たかす", types: ["みず", "どく"], ability: "ひとでなし", stats: {hp:78*2, at:100, df:85, sa:93, sd:90, sp:85} },
+    4: { name: "じゅん", types: ["ノーマル", "フェアリー"], ability: "きょううん", stats: {hp:108*2, at:120, df:110, sa:80, sd:95, sp:115} },
+    5: { name: "たけしげ", types: ["でんき", "いわ"], ability: "てんねん", stats: {hp:90, at:135*2, df:105, sa:30, sd:75, sp:70} },
+    6: { name: "なつうみ", types: ["あく", "エスパー"], ability: "ぜったいねむり", stats: {hp:70*2, at:60, df:65, sa:113, sd:70, sp:108} }
 };
 
 // 簡易化のため、主要技のみ詳細定義。他は汎用データとして扱う。
