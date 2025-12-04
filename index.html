@@ -135,7 +135,7 @@ const db = firebase.database();
 
 /* --- GAME DATA --- */
 const POKEMON_DB = {
-    1: { name: "そうじ", types: ["むし", "じめん"], ability: "カブトアーマー", stats: {hp:180, at:75, df:90, sa:120, sd:60, sp:90} },
+    1: { name: "そうじ", types: ["むし", "じめん"], ability: "カブトアーマー", stats: {hp:180, at:75, df:90, sa:150, sd:60, sp:90} },
     2: { name: "しょうき", types: ["ひこう", "エスパー"], ability: "たんじゅん", stats: {hp:270, at:95, df:100, sa:105, sd:120, sp:80} },
     3: { name: "たかす", types: ["みず", "どく"], ability: "ひとでなし", stats: {hp:255, at:100, df:95, sa:93, sd:110, sp:85} },
     4: { name: "じゅん", types: ["ノーマル", "フェアリー"], ability: "きょううん", stats: {hp:290, at:110, df:110, sa:80, sd:100, sp:90} },
@@ -156,6 +156,8 @@ const MOVES_DB = [
     // でんき
     { name: "10万ボルト", type: "でんき", cat: "spe", pow: 90, acc: 100 },
     { name: "ワイルドボルト", type: "でんき", cat: "phy", pow: 90, acc: 100 },
+    { name: "かみなりのや", type: "でんき", cat: "spe", pow: 125, acc: 75 },
+    { name: "くにひこのいかずち", type: "でんき", cat: "spe", pow:999 , acc: 30 },
     // くさ
     { name: "リーフストーム", type: "くさ", cat: "spe", pow: 130, acc: 90 },
     { name: "ソーラービーム", type: "くさ", cat: "spe", pow: 120, acc: 100 },
@@ -189,7 +191,7 @@ const MOVES_DB = [
     { name: "れいとうビーム", type: "こおり", cat: "spe", pow: 90, acc: 100 },
     // かくとう
     { name: "インファイト", type: "かくとう", cat: "phy", pow: 120, acc: 100 },
-    { name: "はどうだん", type: "かくとう", cat: "spe", pow: 8000, acc: 100 },
+    { name: "はどうだん", type: "かくとう", cat: "spe", pow: 90, acc: 100 },
     // ほのお
     { name: "かえんほうしゃ", type: "ほのお", cat: "spe", pow: 90, acc: 100 },
     { name: "だいもんじ", type: "ほのお", cat: "spe", pow: 110, acc: 85 },
