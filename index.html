@@ -73,7 +73,7 @@
         </div>
         <hr>
         <div class="form-group">
-            <label>部屋に参加 (パスワードを入力)</label>
+            <label>部屋に参加する (パスワードを入力)</label>
             <input type="text" id="join-room-pass" placeholder="教えてもらったパスワード">
             <button onclick="joinRoom()">部屋に入る</button>
         </div>
@@ -99,14 +99,14 @@
         </div>
 
         <div id="action-panel">
-            <h4>行動選択</h4>
+            <h4>つぎはどうする？</h4>
             <div class="move-grid" id="move-buttons">
                 </div>
             <button id="switch-btn" onclick="showSwitchMenu()" style="background:#2196F3">ポケモン交代</button>
         </div>
         
         <div id="switch-menu" class="hidden">
-            <h4>交代先を選択</h4>
+            <h4>交代するポケモンを選択してください</h4>
             <div id="switch-options" class="move-grid"></div>
             <button onclick="cancelSwitch()" style="background:#999">戻る</button>
         </div>
@@ -342,7 +342,7 @@ function joinRoom() {
 function waitForBattle() {
     document.getElementById("screen-lobby").classList.add("hidden");
     document.getElementById("screen-battle").classList.remove("hidden");
-    document.getElementById("room-info").innerText = "Room: " + roomId;
+    document.getElementById("room-info").innerText = "お部屋:" + roomId;
 
     const roomRef = db.ref("rooms/" + roomId);
     unsubscribe = roomRef.on("value", snap => {
