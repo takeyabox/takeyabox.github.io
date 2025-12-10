@@ -160,7 +160,7 @@ class UIController {
     /**
      * Render move buttons
      */
-    renderMoveButtons(moves, onMoveClick, disabled = false) {
+    renderMoveButtons(moves, onMoveClick, disabled = false, validMoves = null) {
         const container = document.getElementById('move-buttons');
         container.innerHTML = '';
 
@@ -175,7 +175,15 @@ class UIController {
 
             const button = document.createElement('button');
             button.className = 'move-btn';
-            button.onclick = () => onMoveClick(moveName);
+
+            // Check if move is valid
+            if (validMoves && !validMoves.includes(moveName)) {
+                button.disabled = true;
+                button.style.opacity = '0.5';
+                button.style.cursor = 'not-allowed';
+            } else {
+                button.onclick = () => onMoveClick(moveName);
+            }
 
             const nameSpan = document.createElement('div');
             nameSpan.className = 'move-name';

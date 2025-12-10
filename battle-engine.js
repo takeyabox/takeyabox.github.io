@@ -172,6 +172,11 @@ class BattleEngine {
             baseStat = Math.floor(baseStat * 1.5);
         }
 
+        // Assault Vest
+        if (stat === 'spd' && pokemon.item === 'assault-vest') {
+            baseStat = Math.floor(baseStat * 1.5);
+        }
+
         return baseStat;
     }
 
@@ -494,6 +499,12 @@ class BattleEngine {
                 defender.weaknessPolicyUsed = true;
                 logs.push(`${defender.name}のじゃくてんほけんが発動! 攻撃と特攻が上がった!`);
             }
+        }
+
+        // Shield (Protect)
+        if (move.effect && move.effect.shield) {
+            attacker.isProtected = true;
+            logs.push(`${attacker.name}は 守りの 体勢に 入った！`);
         }
 
         return effects;

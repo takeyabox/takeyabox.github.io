@@ -341,7 +341,23 @@ function renderBattle() {
     if (myData.action) {
         ui.showWaitingMessage('相手の行動を待っています...');
     } else {
-        ui.renderMoveButtons(myPokemon.moves, selectMove, false);
+        // Calculate valid moves
+        let validMoves = [...myPokemon.moves];
+
+        // Choice Item Lock
+        if (myPokemon.item && myPokemon.item.startsWith('choice-') && myPokemon.choiceMove) {
+            validMoves = [myPokemon.choiceMove];
+        }
+
+        // Assault Vest (No Status Moves)
+        if (myPokemon.item === 'assault-vest') {
+            validMoves = validMoves.filter(mName => {
+                const mData = pokemonMoves.find(m => m.name === mName);
+                return mData && mData.category !== '変化';
+            });
+        }
+
+        ui.renderMoveButtons(myPokemon.moves, selectMove, false, validMoves);
     }
 }
 
@@ -440,6 +456,10 @@ function resolveTurn() {
     const p1Pokemon = p1Data.team[p1Data.activeIndex];
     const p2Pokemon = p2Data.team[p2Data.activeIndex];
 
+    // Reset protection state at start of turn resolving
+    p1Pokemon.isProtected = false;
+    p2Pokemon.isProtected = false;
+
     // Determine turn order
     const turnOrder = battleEngine.determineTurnOrder(
         p1Data.action,
@@ -461,6 +481,13 @@ function resolveTurn() {
 
         // Handle switch
         if (action.type === 'switch') {
+            // Reset volatile status of current pokemon (the one switching OUT)
+            actor.statStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+            actor.confusionTurns = 0;
+            if (actor.status === 'confusion') actor.status = null;
+            actor.choiceMove = null;
+            actor.isProtected = false;
+
             state[actorSide].activeIndex = action.switchIndex;
             const newPokemon = state[actorSide].team[action.switchIndex];
             logs.push(`${state[actorSide].name}は${newPokemon.name}に交代した！`);
@@ -472,6 +499,11 @@ function resolveTurn() {
             const move = pokemonMoves.find(m => m.name === action.move);
             if (!move) return;
 
+            // Set Choice Lock
+            if (actor.item && actor.item.startsWith('choice-') && !actor.choiceMove) {
+                actor.choiceMove = move.name;
+            }
+
             // Check if can act (status conditions)
             const canActResult = battleEngine.canAct(actor);
             if (!canActResult.canAct) {
@@ -481,6 +513,21 @@ function resolveTurn() {
             if (canActResult.message) logs.push(canActResult.message);
 
             logs.push(`${actor.name}の${move.name}！`);
+
+            // Protection Check
+            // Block move if target is protected AND move is offensive
+            // Offensive definition: Power > 0 OR Status Ailment OR Negative Stat Change on Opponent
+            const isOffensive = (move.power > 0) ||
+                (move.effect && move.effect.status_ailment) ||
+                (move.effect && move.effect.stat_change && move.effect.stat_change.some(sc => sc.target === 'opponent'));
+
+            // Exceptions: Moves that penetrate protect or self-targeting moves shouldn't check protection
+            if (target.isProtected && isOffensive) {
+                // Check for Feint-like moves if any exist (none in current simple db but good practice)
+                // For now, simple block
+                logs.push(`${target.name}は 攻撃を 防いだ！`);
+                return;
+            }
 
             // Accuracy check
             if (move.accuracy && move.accuracy !== Infinity) {
@@ -493,7 +540,6 @@ function resolveTurn() {
             // Damage calculation
             if (move.category !== "変化") {
                 const damage = battleEngine.calculateDamage(actor, target, move, state);
-                target.currentHp = Math.max(0, target.currentHp - damage);
 
                 // Type effectiveness messages
                 const typeEffect = battleEngine.getTypeEffectiveness(move.type, target.types);
@@ -501,10 +547,26 @@ function resolveTurn() {
                 if (typeEffect < 1 && typeEffect > 0) logs.push('効果はいまひとつのようだ...');
                 if (typeEffect === 0) logs.push(`${target.name}には効果がないようだ...`);
 
-                logs.push(`${target.name}に${damage}ダメージ！`);
+                // Focus Sash Logic
+                let finalDamage = damage;
+                if (target.item === 'focus-sash' && target.currentHp === target.maxHp && damage >= target.currentHp) {
+                    finalDamage = target.currentHp - 1;
+                    target.item = null; // Consume item
+                    logs.push(`${target.name}は きあいのタスキで 持ちこたえた！`);
+                }
+
+                target.currentHp = Math.max(0, target.currentHp - finalDamage);
+
+                logs.push(`${target.name}に${finalDamage}ダメージ！`);
 
                 // Apply move effects
-                battleEngine.applyMoveEffects(actor, target, move, damage, logs);
+                battleEngine.applyMoveEffects(actor, target, move, finalDamage, logs);
+
+                // Handle Weakness Policy consumption
+                if (target.weaknessPolicyUsed) {
+                    target.item = null; // Consume item
+                    target.weaknessPolicyUsed = false; // Reset flag
+                }
 
                 if (target.currentHp === 0) {
                     logs.push(`${target.name}は倒れた！`);
