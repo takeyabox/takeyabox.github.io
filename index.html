@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新富STREET謹製 ポケモンバトル</title>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="background-animation"></div>
+    
+    <div class="container">
+        <!-- Login Screen -->
+        <div id="screen-login" class="screen">
+            <div class="login-panel glass-panel">
+                <h1 class="game-title">
+                    <span class="title-gradient">新富STREET謹製</span>
+                    <span class="title-main">ポケモンバトル</span>
+                </h1>
+                <div class="form-group">
+                    <label for="player-name-input">プレイヤー名</label>
+                    <input type="text" id="player-name-input" placeholder="名前を入力してください" maxlength="12">
+                </div>
+                <button class="btn-primary" onclick="goToTeamSelect()">
+                    編成に進む
+                    <span class="btn-arrow">→</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Team Builder Screen -->
+        <div id="screen-team" class="screen hidden">
+            <div class="team-panel glass-panel">
+                <h2>チーム編成</h2>
+                <p class="instruction">手持ちポケモンを<strong>3体</strong>選び、各ポケモンに技を<strong>4つ</strong>、特性と持ち物を選択してください。</p>
+                
+                <div id="team-builder-container"></div>
+                
+                <div class="team-summary" id="team-summary">
+                    選択中: <span id="selected-count">0</span>/3体
+                </div>
+                
+                <button class="btn-primary" onclick="finalizeTeam()">
+                    チームを決定する
+                    <span class="btn-arrow">→</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Lobby Screen -->
+        <div id="screen-lobby" class="screen hidden">
+            <div class="lobby-panel glass-panel">
+                <h2>対戦ロビー</h2>
+                <h3 class="player-welcome">ようこそ、<span id="display-name" class="player-name-display"></span>さん</h3>
+                
+                <div class="lobby-options">
+                    <div class="lobby-section">
+                        <h4>部屋を作成</h4>
+                        <p class="lobby-description">パスワードを設定して新しい部屋を作成します</p>
+                        <div class="form-group">
+                            <input type="text" id="create-room-pass" placeholder="パスワードを入力" maxlength="20">
+                        </div>
+                        <button class="btn-primary" onclick="createRoom()">
+                            部屋を作る
+                        </button>
+                    </div>
+                    
+                    <div class="lobby-divider">OR</div>
+                    
+                    <div class="lobby-section">
+                        <h4>部屋に参加</h4>
+                        <p class="lobby-description">相手から教えてもらったパスワードを入力</p>
+                        <div class="form-group">
+                            <input type="text" id="join-room-pass" placeholder="パスワードを入力" maxlength="20">
+                        </div>
+                        <button class="btn-secondary" onclick="joinRoom()">
+                            部屋に入る
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Battle Screen -->
+        <div id="screen-battle" class="screen hidden">
+            <div class="battle-container">
+                <div class="battle-header">
+                    <h2 id="room-info" class="room-info">Battle Room</h2>
+                    <div id="weather-indicator" class="weather-indicator"></div>
+                </div>
+
+                <!-- Opponent Pokemon Display -->
+                <div class="pokemon-display opponent-side">
+                    <div class="pokemon-info">
+                        <h3 id="enemy-name" class="pokemon-name">相手のポケモン</h3>
+                        <div class="pokemon-types" id="enemy-types"></div>
+                    </div>
+                    <div class="pokemon-stats">
+                        <div id="enemy-status-badges" class="status-badges"></div>
+                        <div class="hp-container">
+                            <div class="hp-label">HP</div>
+                            <div class="hp-bar-container">
+                                <div id="enemy-hp-bar" class="hp-bar"></div>
+                            </div>
+                            <div id="enemy-hp-text" class="hp-text">100%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="battle-vs">VS</div>
+
+                <!-- Player Pokemon Display -->
+                <div class="pokemon-display player-side">
+                    <div class="pokemon-info">
+                        <h3 id="my-name" class="pokemon-name">自分のポケモン</h3>
+                        <div class="pokemon-types" id="my-types"></div>
+                    </div>
+                    <div class="pokemon-stats">
+                        <div id="my-status-badges" class="status-badges"></div>
+                        <div class="hp-container">
+                            <div class="hp-label">HP</div>
+                            <div class="hp-bar-container">
+                                <div id="my-hp-bar" class="hp-bar"></div>
+                            </div>
+                            <div id="my-hp-text" class="hp-text">HP: 100/100</div>
+                        </div>
+                        <div class="stat-stages" id="my-stat-stages"></div>
+                    </div>
+                </div>
+
+                <!-- Action Panel -->
+                <div id="action-panel" class="action-panel">
+                    <h4>次の行動を選択</h4>
+                    <div id="move-buttons" class="move-grid"></div>
+                    <button id="switch-btn" class="btn-switch" onclick="showSwitchMenu()">
+                        ポケモン交代
+                    </button>
+                </div>
+
+                <!-- Switch Menu -->
+                <div id="switch-menu" class="switch-menu hidden">
+                    <h4>交代するポケモンを選択</h4>
+                    <div id="switch-options" class="switch-grid"></div>
+                    <button class="btn-cancel" onclick="cancelSwitch()">戻る</button>
+                </div>
+
+                <!-- Battle Log -->
+                <div class="battle-log-container">
+                    <h4>バトルログ</h4>
+                    <div id="battle-log" class="battle-log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Scripts -->
+    <script src="data.js"></script>
+    <script src="move_list.js"></script>
+    <script src="typechart.js"></script>
+    <script src="firebase_config.js"></script>
+    <script src="held-items.js"></script>
+    <script src="move-compatibility.js"></script>
+    <script src="battle-engine.js"></script>
+    <script src="ui-controller.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokemon Battle Online</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        :root { --primary: #ff5252; --bg: #f0f4f8; --panel: #ffffff; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 800px; background: var(--panel); padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: #333; }
+        .hidden { display: none !important; }
+        
+        /* Forms & Inputs */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, button { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
+        button { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* Team Builder */
+        .pokemon-select { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 8px; }
+        .stat-preview { font-size: 0.8em; color: #666; display: flex; gap: 10px; flex-wrap: wrap; }
+
+        /* Battle Screen */
+        .battle-field { display: flex; flex-direction: column; gap: 20px; margin-bottom: 20px; }
+        .pokemon-display { background: #eee; padding: 15px; border-radius: 8px; position: relative; }
+        .hp-bar-container { width: 100%; height: 20px; background: #ccc; border-radius: 10px; overflow: hidden; margin-top: 5px; }
+        .hp-bar { height: 100%; background: #4caf50; transition: width 0.5s ease; width: 100%; }
+        .hp-text { font-size: 12px; text-align: right; }
+        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: white; margin-left: 5px; }
+        .status-psn { background: purple; } .status-slp { background: grey; }
+
+        /* Controls */
+        .move-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .move-btn { background: #fff; border: 2px solid #333; color: #333; height: 60px; }
+        
+        /* Log */
+        #battle-log { height: 150px; overflow-y: auto; background: #222; color: #fff; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 14px; white-space: pre-wrap; }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="screen-login">
+        <h1>新富STREET謹製ポケモンバトル</h1>
+        <div class="form-group">
+            <label>プレイヤー名</label>
+            <input type="text" id="player-name-input" placeholder="名前を入力">
+        </div>
+        <button onclick="goToTeamSelect()">編成に進む</button>
+    </div>
+
+    <div id="screen-team" class="hidden">
+        <h2>チーム編成</h2>
+        <p>手持ちポケモン3体選出し、各ポケモンに覚えさせる技を4つずつ選んでください。</p>
+        <div id="team-builder-container"></div>
+        <button onclick="finalizeTeam()">チームを決定する</button>
+    </div>
+
+    <div id="screen-lobby" class="hidden">
+        <h2>対戦ロビー</h2>
+        <h3>ようこそ、<span id="display-name"></span>さん</h3>
+        <p>パスワードを決めて部屋を作成するか、教えても立ったパスワードを入力し、部屋に入ってください。/p>
+        <div class="form-group">
+            <label>部屋を作成 (パスワードを設定)</label>
+            <input type="text" id="create-room-pass" placeholder="パスワード">
+            <button onclick="createRoom()">部屋を作る</button>
+        </div>
+        <hr>
+        <div class="form-group">
+            <label>部屋に参加する (パスワードを入力)</label>
+            <input type="text" id="join-room-pass" placeholder="教えてもらったパスワード">
+            <button onclick="joinRoom()">部屋に入る</button>
+        </div>
+    </div>
+
+    <div id="screen-battle" class="hidden">
+        <h2 id="room-info">Battle</h2>
+        
+        <div class="pokemon-display">
+            <h3 id="enemy-name">相手のポケモン</h3>
+            <div id="enemy-status-badges"></div>
+            <div class="hp-bar-container"><div id="enemy-hp-bar" class="hp-bar"></div></div>
+            <div class="hp-text" id="enemy-hp-text">100%</div>
+        </div>
+
+        <div style="text-align: center; margin: 10px;">VS</div>
+
+        <div class="pokemon-display">
+            <h3 id="my-name">自分のポケモン</h3>
+            <div id="my-status-badges"></div>
+            <div class="hp-bar-container"><div id="my-hp-bar" class="hp-bar"></div></div>
+            <div class="hp-text" id="my-hp-text">HP: 100/100</div>
+        </div>
+
+        <div id="action-panel">
+            <h4>つぎはどうする？</h4>
+            <div class="move-grid" id="move-buttons">
+                </div>
+            <button id="switch-btn" onclick="showSwitchMenu()" style="background:#2196F3">ポケモン交代</button>
+        </div>
+        
+        <div id="switch-menu" class="hidden">
+            <h4>交代するポケモンを選択してください</h4>
+            <div id="switch-options" class="move-grid"></div>
+            <button onclick="cancelSwitch()" style="background:#999">戻る</button>
+        </div>
+
+        <h4>バトルログ</h4>
+        <div id="battle-log"></div>
+    </div>
+</div>
+
+<script>
+/** * CONFIGURATION 
+ * ここにFirebaseの設定を貼り付けてください
+ */
+const firebaseConfig = {
+    apiKey: "AIzaSyAmcJIQA6CqmoSOlW4CMBmNyl_4V5rsoKc",
+    authDomain: "shintomistreet-pokemon-battle.firebaseapp.com",
+    databaseURL: "https://shintomistreet-pokemon-battle-default-rtdb.firebaseio.com/",
+    projectId: "shintomistreet-pokemon-battle",
+    storageBucket: "shintomistreet-pokemon-battle.firebasestorage.app",
+    messagingSenderId: "438233977612",
+    appId: "1:438233977612:web:78da562a1c485970336f29"
+};
+// Initialize Firebase
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* --- GAME DATA --- */
+const POKEMON_DB = {
+    1: { name: "そうじ", types: ["むし", "じめん"], ability: "カブトアーマー", stats: {hp:160, at:70, df:95, sa:145, sd:55, sp:90} },
+    2: { name: "しょうき", types: ["ひこう", "エスパー"], ability: "たんじゅん", stats: {hp:270, at:90, df:100, sa:105, sd:120, sp:80} },
+    3: { name: "たかす", types: ["みず", "どく"], ability: "ひとでなし", stats: {hp:255, at:100, df:95, sa:93, sd:110, sp:85} },
+    4: { name: "じゅん", types: ["ノーマル", "フェアリー"], ability: "きょううん", stats: {hp:290, at:110, df:110, sa:85, sd:90, sp:90} },
+    5: { name: "たけしげ", types: ["でんき", "いわ"], ability: "てんねん", stats: {hp:260, at:125, df:100, sa:30, sd:75, sp:75} },
+    6: { name: "なつうみ", types: ["あく", "エスパー"], ability: "ぜったいねむり", stats: {hp:230, at:50, df:80, sa:120, sd:100, sp:108} }
+};
+
+// 簡易化のため、主要技のみ詳細定義。他は汎用データとして扱う。
+const MOVES_DB = [
+    // ノーマル
+    { name: "すてみタックル", type: "ノーマル", cat: "phy", pow: 120, acc: 100 },
+    { name: "まもる", type: "ノーマル", cat: "sts", pow: 0, acc: 100 },
+    { name: "じこさいせい", type: "ノーマル", cat: "sts", pow: 0, acc: 100 },
+    // みず
+    { name: "ハイドロポンプ", type: "みず", cat: "spe", pow: 110, acc: 80 },
+    { name: "なみのり", type: "みず", cat: "spe", pow: 90, acc: 100 },
+    { name: "アクアブレイク", type: "みず", cat: "phy", pow: 85, acc: 100 },
+    // でんき
+    { name: "10万ボルト", type: "でんき", cat: "spe", pow: 90, acc: 100 },
+    { name: "ワイルドボルト", type: "でんき", cat: "phy", pow: 90, acc: 100 },
+    // くさ
+    { name: "リーフストーム", type: "くさ", cat: "spe", pow: 130, acc: 90 },
+    { name: "ソーラービーム", type: "くさ", cat: "spe", pow: 120, acc: 100 },
+    // どく
+    { name: "ヘドロばくだん", type: "どく", cat: "spe", pow: 90, acc: 100 },
+    { name: "どくどく", type: "どく", cat: "sts", pow: 0, acc: 90, effect: "poison" },
+    // じめん
+    { name: "じしん", type: "じめん", cat: "phy", pow: 100, acc: 100 },
+    { name: "だいちのちから", type: "じめん", cat: "spe", pow:90 , acc: 100 },
+    // ひこう
+    { name: "エアスラッシュ", type: "ひこう", cat: "spe", pow: 75, acc: 95 },
+    { name: "ブレイブバード", type: "ひこう", cat: "phy", pow: 120, acc: 100 },
+    // エスパー
+    { name: "サイコキネシス", type: "エスパー", cat: "spe", pow: 90, acc: 100 },
+    // むし
+    { name: "メガホーン", type: "むし", cat: "phy", pow: 120, acc: 85 },
+    { name: "むしのさざめき", type: "むし", cat: "spe", pow: 90, acc: 100 },
+    // いわ
+    { name: "ストーンエッジ", type: "いわ", cat: "phy", pow: 100, acc: 80 },
+    { name: "いわなだれ", type: "いわ", cat: "phy", pow: 75, acc: 90 },
+    // あく
+    { name: "あくのはどう", type: "あく", cat: "spe", pow: 80, acc: 100 },
+    { name: "かみくだく", type: "あく", cat: "phy", pow: 80, acc: 100 },
+    { name: "ふいうち", type: "あく", cat: "phy", pow: 70, acc: 100 },
+    // フェアリー
+    { name: "じゃれつく", type: "フェアリー", cat: "phy", pow: 90, acc: 90 },
+    { name: "ムーンフォース", type: "フェアリー", cat: "spe", pow: 95, acc: 100 }, // リスト外だが補完
+    // ゴースト
+    { name: "シャドーボール", type: "ゴースト", cat: "spe", pow: 80, acc: 100 },
+    // こおり
+    { name: "れいとうビーム", type: "こおり", cat: "spe", pow: 90, acc: 100 },
+    // かくとう
+    { name: "インファイト", type: "かくとう", cat: "phy", pow: 120, acc: 100 },
+    { name: "はどうだん", type: "かくとう", cat: "spe", pow: 90, acc: 100 },
+    // ほのお
+    { name: "かえんほうしゃ", type: "ほのお", cat: "spe", pow: 90, acc: 100 },
+    { name: "だいもんじ", type: "ほのお", cat: "spe", pow: 110, acc: 85 },
+    // はがね
+    { name: "アイアンヘッド", type: "はがね", cat: "phy", pow: 80, acc: 100 },
+    { name: "ラスターカノン", type: "はがね", cat: "spe", pow: 80, acc: 100 }
+];
+
+// タイプ相性 (攻撃側タイプ: {防御側タイプ: 倍率})
+// 指定：2倍、等倍(省略)、半減、無効
+const TYPE_CHART = {
+    "ノーマル": { "いわ": 0.5, "ゴースト": 0 },
+    "みず": { "じめん": 2, "いわ": 2, "みず": 0.5, "くさ": 0.5, "ドラゴン": 0.5 },
+    "でんき": { "みず": 2, "ひこう": 2, "でんき": 0.5, "くさ": 0.5, "ドラゴン": 0.5, "じめん": 0 },
+    "どく": { "くさ": 2, "フェアリー": 2, "どく": 0.5, "じめん": 0.5, "いわ": 0.5, "ゴースト": 0.5, "はがね": 0 },
+    "じめん": { "でんき": 2, "どく": 2, "いわ": 2, "ほのお": 2, "はがね": 2, "くさ": 0.5, "むし": 0.5, "ひこう": 0 },
+    "ひこう": { "くさ": 2, "むし": 2, "かくとう": 2, "でんき": 0.5, "いわ": 0.5, "はがね": 0.5 },
+    "エスパー": { "どく": 2, "かくとう": 2, "エスパー": 0.5, "はがね": 0.5, "あく": 0 },
+    "むし": { "くさ": 2, "エスパー": 2, "あく": 2, "どく": 0.5, "ひこう": 0.5, "フェアリー": 0.5, "ほのお": 0.5, "はがね": 0.5, "ゴースト": 0.5 },
+    "いわ": { "ひこう": 2, "むし": 2, "ほのお": 2, "こおり": 2, "じめん": 0.5, "はがね": 0.5 },
+    "あく": { "エスパー": 2, "ゴースト": 2, "あく": 0.5, "フェアリー": 0.5, "かくとう": 0.5 },
+    "フェアリー": { "あく": 2, "ドラゴン": 2, "かくとう": 2, "どく": 0.5, "ほのお": 0.5, "はがね": 0.5 },
+    "ドラゴン": { "ドラゴン": 2, "はがね": 0.5, "フェアリー": 0 },
+    "ほのお": { "くさ": 2, "こおり": 2, "むし": 2, "はがね": 2, "ほのお": 0.5, "みず": 0.5, "いわ": 0.5, "ドラゴン": 0.5 },
+    "はがね": { "フェアリー": 2, "こおり": 2, "いわ": 2, "はがね": 0.5, "ほのお": 0.5, "みず": 0.5, "でんき": 0.5 },
+    "ゴースト": { "ゴースト": 2, "エスパー": 2, "あく": 0.5, "ノーマル": 0 },
+    "こおり": { "くさ": 2, "じめん": 2, "ひこう": 2, "ドラゴン": 2, "こおり": 0.5, "ほのお": 0.5, "みず": 0.5, "はがね": 0.5 },
+    "かくとう": { "ノーマル": 2, "こおり": 2, "いわ": 2, "あく": 2, "はがね": 2, "どく": 0.5, "ひこう": 0.5, "エスパー": 0.5, "むし": 0.5, "フェアリー": 0.5, "ゴースト": 0 }
+};
+
+/* --- STATE --- */
+let playerName = "";
+let myTeam = []; // [{id, moves:[], hp, maxHp, status}]
+let roomId = "";
+let mySide = ""; // "p1" or "p2"
+let battleState = null;
+let unsubscribe = null;
+
+/* --- UI FLOW --- */
+function goToTeamSelect() {
+    const name = document.getElementById("player-name-input").value;
+    if(!name) return alert("名前を入力してください");
+    playerName = name;
+    document.getElementById("screen-login").classList.add("hidden");
+    document.getElementById("screen-team").classList.remove("hidden");
+    renderTeamBuilder();
+}
+
+function renderTeamBuilder() {
+    const container = document.getElementById("team-builder-container");
+    container.innerHTML = "";
+    Object.keys(POKEMON_DB).forEach(id => {
+        const pkmn = POKEMON_DB[id];
+        const div = document.createElement("div");
+        div.className = "pokemon-select";
+        // 技選択のプルダウンを4つ作成
+        let movesHtml = "";
+        for(let i=0; i<4; i++){
+            movesHtml += `<select class="move-select" data-id="${id}">
+                <option value="">技${i+1}を選択</option>
+                ${MOVES_DB.map(m => `<option value="${m.name}">${m.name} (${m.type})</option>`).join('')}
+            </select>`;
+        }
+
+        div.innerHTML = `
+            <label><input type="checkbox" class="pkmn-check" value="${id}"> <strong>${pkmn.name}</strong> (${pkmn.types.join("/")})</label>
+            <div class="stat-preview">特性: ${pkmn.ability} | H:${pkmn.stats.hp} A:${pkmn.stats.at} B:${pkmn.stats.df} C:${pkmn.stats.sa} D:${pkmn.stats.sd} S:${pkmn.stats.sp}</div>
+            <div style="margin-top:5px; display:grid; grid-template-columns:1fr 1fr; gap:5px;">${movesHtml}</div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function finalizeTeam() {
+    const checks = document.querySelectorAll(".pkmn-check:checked");
+    if(checks.length !== 3) return alert("ポケモンをちょうど3体選んでください");
+    
+    myTeam = [];
+    let valid = true;
+
+    checks.forEach(chk => {
+        const id = chk.value;
+        const pkmn = POKEMON_DB[id];
+        const moveSelects = chk.parentElement.parentElement.querySelectorAll(".move-select");
+        const moves = [];
+        moveSelects.forEach(s => { if(s.value) moves.push(s.value); });
+        
+        if(moves.length !== 4) valid = false;
+
+        // 初期ステータス構築 (実数値は種族値をそのまま採用)
+        let status = null;
+        if (pkmn.ability === "ぜったいねむり") status = "sleep"; // なつうみ用
+
+        myTeam.push({
+            id: id,
+            name: pkmn.name,
+            types: pkmn.types,
+            ability: pkmn.ability,
+            stats: {...pkmn.stats}, // コピー
+            maxHp: pkmn.stats.hp,
+            currentHp: pkmn.stats.hp,
+            moves: moves,
+            status: status, 
+            statStages: {at:0, df:0, sa:0, sd:0, sp:0, acc:0, eva:0}
+        });
+    });
+
+    if(!valid) return alert("各ポケモンに技を4つ設定してください");
+
+    document.getElementById("screen-team").classList.add("hidden");
+    document.getElementById("screen-lobby").classList.remove("hidden");
+    document.getElementById("display-name").textContent = playerName;
+}
+
+/* --- FIREBASE & ROOM LOGIC --- */
+function createRoom() {
+    roomId = document.getElementById("create-room-pass").value;
+    if(!roomId) return;
+    mySide = "p1";
+    
+    // 初期部屋データ
+    db.ref("rooms/" + roomId).set({
+        p1: { name: playerName, team: myTeam, activeIndex: 0, action: null },
+        p2: null,
+        turn: 1,
+        log: ["部屋が作成されました。対戦相手を待っています..."],
+        phase: "waiting"
+    });
+    waitForBattle();
+}
+
+function joinRoom() {
+    roomId = document.getElementById("join-room-pass").value;
+    if(!roomId) return;
+    mySide = "p2";
+
+    const roomRef = db.ref("rooms/" + roomId);
+    roomRef.once("value", snap => {
+        if(!snap.exists()) return alert("部屋が見つかりません");
+        if(snap.val().p2) return alert("満員です");
+
+        roomRef.update({
+            p2: { name: playerName, team: myTeam, activeIndex: 0, action: null },
+            phase: "ready"
+        });
+        waitForBattle();
+    });
+}
+
+function waitForBattle() {
+    document.getElementById("screen-lobby").classList.add("hidden");
+    document.getElementById("screen-battle").classList.remove("hidden");
+    document.getElementById("room-info").innerText = "お部屋:" + roomId;
+
+    const roomRef = db.ref("rooms/" + roomId);
+    unsubscribe = roomRef.on("value", snap => {
+        const val = snap.val();
+        if(!val) return;
+        battleState = val;
+        renderBattle();
+
+        // 両者のアクションが揃ったらホスト(p1)が計算を実行
+        if (mySide === "p1" && val.phase === "ready" && val.p1.action && val.p2.action) {
+            resolveTurn(val);
+        }
+    });
+}
+
+/* --- BATTLE LOGIC (HOST ONLY) --- */
+/* --- BATTLE LOGIC (HOST ONLY) --- */
+function resolveTurn(state) {
+    db.ref("rooms/" + roomId).update({ phase: "calculating" });
+
+    const p1Idx = state.p1.activeIndex;
+    const p2Idx = state.p2.activeIndex;
+    const p1Poke = state.p1.team[p1Idx];
+    const p2Poke = state.p2.team[p2Idx];
+    const log = [];
+
+    // --- (ここから計算処理は前回と同じですが、念のため記述します) ---
+    let p1Speed = p1Poke.stats.sp;
+    let p2Speed = p2Poke.stats.sp;
+    
+    let p1Priority = state.p1.action.type === "switch" ? 1000 : 0;
+    let p2Priority = state.p2.action.type === "switch" ? 1000 : 0;
+    
+    let first = "p1";
+    if (p2Priority > p1Priority) first = "p2";
+    else if (p2Priority === p1Priority && p2Speed > p1Speed) first = "p2";
+    else if (p2Priority === p1Priority && p2Speed === p1Speed && Math.random() > 0.5) first = "p2";
+    
+    const second = first === "p1" ? "p2" : "p1";
+    const order = [first, second];
+
+    const processAction = (actorSide, targetSide, actorPoke, targetPoke, action) => {
+        if (actorPoke.currentHp <= 0) return;
+
+        if (action.type === "switch") {
+            state[actorSide].activeIndex = action.idx;
+            log.push(`${state[actorSide].name}は ${actorPoke.name} を引っ込めて ${state[actorSide].team[action.idx].name} を繰り出した！`);
+            return;
+        }
+
+        if (action.type === "move") {
+            if (actorPoke.status === "sleep" && actorPoke.ability !== "ぜったいねむり") {
+                log.push(`${actorPoke.name}は ぐうぐう眠っている...`);
+                return;
+            }
+
+            const move = MOVES_DB.find(m => m.name === action.move);
+            if (!move) { log.push(`${actorPoke.name}は 動けない！`); return; }
+
+            log.push(`${actorPoke.name}の ${move.name}！`);
+
+            if (move.acc < 100 && Math.random() * 100 > move.acc) {
+                log.push(`しかし ${targetPoke.name}には 当たらなかった！`);
+                return;
+            }
+
+            if (move.cat !== "sts") {
+                let atk = move.cat === "phy" ? actorPoke.stats.at : actorPoke.stats.sa;
+                let def = move.cat === "phy" ? targetPoke.stats.df : targetPoke.stats.sd;
+
+                let typeMod = 1.0;
+                targetPoke.types.forEach(tType => {
+                    const chart = TYPE_CHART[move.type];
+                    if (chart && chart[tType] !== undefined) typeMod *= chart[tType];
+                });
+
+                let critRate = 1/24;
+                if (actorPoke.ability === "きょううん") critRate = 1/8;
+                if (actorPoke.ability === "ひとでなし" && targetPoke.status === "poison") critRate = 1.0;
+
+                let isCrit = Math.random() < critRate;
+                if (targetPoke.ability === "カブトアーマー") isCrit = false;
+
+                const level = 50;
+                let damage = Math.floor(Math.floor(Math.floor(2 * level / 5 + 2) * move.pow * atk / def) / 50) + 2;
+
+                if (isCrit) damage = Math.floor(damage * 1.5);
+                damage = Math.floor(damage * typeMod);
+                damage = Math.floor(damage * (0.85 + Math.random() * 0.15));
+
+                targetPoke.currentHp = Math.max(0, targetPoke.currentHp - damage);
+
+                if (typeMod > 1) log.push("こうかは ばつぐんだ！");
+                if (typeMod < 1 && typeMod > 0) log.push("こうかは いまひとつのようだ...");
+                if (typeMod === 0) log.push(`${targetPoke.name}には 効果がないようだ...`);
+                if (isCrit) log.push("急所に当たった！");
+
+                if (move.effect === "poison" && targetPoke.currentHp > 0 && !targetPoke.status && targetPoke.ability !== "ぜったいねむり") {
+                     targetPoke.status = "poison";
+                     log.push(`${targetPoke.name}は 毒を浴びた！`);
+                }
+            } else {
+                if (move.effect === "poison" && !targetPoke.status) {
+                    targetPoke.status = "poison";
+                    log.push(`${targetPoke.name}は 猛毒を浴びた！`);
+                } else {
+                    log.push("しかし うまく決まらなかった！");
+                }
+            }
+        }
+    };
+
+    const p1Actor = first === "p1" ? p1Poke : p2Poke;
+    const p1Target = first === "p1" ? p2Poke : p1Poke;
+    processAction(order[0], order[1], p1Actor, p1Target, state[order[0]].action);
+
+    const p2Actor = second === "p1" ? p1Poke : p2Poke;
+    const p2Target = second === "p1" ? p2Poke : p1Poke;
+
+    if (p1Actor.currentHp > 0 && p2Actor.currentHp > 0) {
+       const currentP1Idx = state.p1.activeIndex;
+       const currentP2Idx = state.p2.activeIndex;
+       const currentP1Poke = state.p1.team[currentP1Idx];
+       const currentP2Poke = state.p2.team[currentP2Idx];
+       const actSide = order[1];
+       const tgtSide = order[0];
+       const actor = actSide === "p1" ? currentP1Poke : currentP2Poke;
+       const target = tgtSide === "p1" ? currentP1Poke : currentP2Poke;
+       processAction(actSide, tgtSide, actor, target, state[actSide].action);
+    } else if (p2Actor.currentHp <= 0) {
+        log.push(`${p2Actor.name}は 倒れた！`);
+    }
+
+    if (p1Actor.currentHp <= 0) log.push(`${p1Actor.name}は 倒れた！`);
+    // --- (ここまで計算処理) ---
+
+
+    // ★ここが変更点：瀕死チェックとフェーズ分岐★
+state.p1.action = null;
+    state.p2.action = null;
+    state.log = [...state.log, ...log];
+    
+    // 生存数カウント
+    const p1Alive = state.p1.team.filter(p => p.currentHp > 0).length;
+    const p2Alive = state.p2.team.filter(p => p.currentHp > 0).length;
+
+    if (p1Alive === 0 || p2Alive === 0) {
+        state.phase = "finished";
+        state.winner = p1Alive > 0 ? "p1" : "p2";
+        state.log.push(`勝負あり！ ${state[state.winner].name} の勝ち！`);
+    } else {
+        // どちらかが倒れていて、かつ全滅はしていない -> 強制交代
+        const p1ActiveDead = state.p1.team[state.p1.activeIndex].currentHp <= 0;
+        const p2ActiveDead = state.p2.team[state.p2.activeIndex].currentHp <= 0;
+
+        if (p1ActiveDead || p2ActiveDead) {
+            state.phase = "forced_switch"; 
+        } else {
+            state.phase = "ready";
+            state.turn += 1;
+        }
+    }
+
+    db.ref("rooms/" + roomId).set(state);
+}
+
+/* --- RENDER --- */
+/* --- RENDER --- */
+function renderBattle() {
+    if(!battleState) return;
+
+    const enemySide = mySide === "p1" ? "p2" : "p1";
+    if(!battleState[enemySide]) {
+        document.getElementById("battle-log").innerText = "対戦相手を待機中...";
+        return;
+    }
+
+    const myData = battleState[mySide];
+    const enemyData = battleState[enemySide];
+    const myPoke = myData.team[myData.activeIndex];
+    const enemyPoke = enemyData.team[enemyData.activeIndex];
+    
+    // 名前・HP・ステータス更新
+    document.getElementById("my-name").innerText = myPoke.name + ` (Lv.50)`;
+    document.getElementById("enemy-name").innerText = enemyPoke.name + ` (Lv.50)`;
+    updateHpBar("my", myPoke.currentHp, myPoke.maxHp);
+    updateHpBar("enemy", enemyPoke.currentHp, enemyPoke.maxHp);
+    renderStatus("my", myPoke.status);
+    renderStatus("enemy", enemyPoke.status);
+
+// ★ここに追加：バトル終了時の表示★
+    if (battleState.phase === "finished") {
+        document.getElementById("battle-log").innerHTML = 
+            battleState.log.map(l => `<div class="log-entry">${l}</div>`).join("");
+        document.getElementById("battle-log").scrollTop = document.getElementById("battle-log").scrollHeight;
+
+        const isWin = battleState.winner === mySide;
+        const resultHtml = `
+            <div style="text-align:center; padding: 20px;">
+                <h2 style="color: ${isWin ? 'red' : 'blue'}; font-size: 2em;">
+                    ${isWin ? "YOU WIN!" : "YOU LOSE..."}
+                </h2>
+                <p>対戦ありがとうございました。</p>
+                <button onclick="returnToTeamSelect()" style="padding:15px; font-size:1.2em;">
+                    技構成を維持して編成画面へ戻る
+                </button>
+            </div>
+        `;
+        
+        // 画面全体を結果表示で覆う、あるいは操作パネルを置き換える
+        document.getElementById("action-panel").classList.remove("hidden");
+        document.getElementById("action-panel").innerHTML = resultHtml;
+        document.getElementById("switch-menu").classList.add("hidden");
+        return;
+    }
+
+
+
+
+    // ログ表示
+    const logDiv = document.getElementById("battle-log");
+    logDiv.innerHTML = battleState.log.map(l => `<div class="log-entry">${l}</div>`).join("");
+    logDiv.scrollTop = logDiv.scrollHeight;
+
+
+    // ★ここが変更点：操作パネルの制御★
+    const moveContainer = document.getElementById("move-buttons");
+    moveContainer.innerHTML = "";
+    document.getElementById("switch-menu").classList.add("hidden");
+    document.getElementById("action-panel").classList.remove("hidden");
+
+    // 1. 強制交代フェーズの場合
+    if (battleState.phase === "forced_switch") {
+        if (myPoke.currentHp <= 0) {
+            // 自分が倒れている -> 交代画面を強制表示
+            document.getElementById("action-panel").classList.add("hidden");
+            renderForcedSwitchMenu(); 
+        } else {
+            // 相手が倒れていて、相手の選択待ち
+            moveContainer.innerHTML = "<p>相手が次のポケモンを選んでいます...</p>";
+            document.getElementById("switch-btn").disabled = true;
+        }
+        return; 
+    }
+
+    // 2. 通常フェーズ
+    document.getElementById("switch-btn").disabled = false;
+
+    if (myData.action) {
+        moveContainer.innerHTML = "<p>行動選択済み。相手を待っています...</p>";
+    } else {
+        myPoke.moves.forEach(mName => {
+            const btn = document.createElement("button");
+            const mData = MOVES_DB.find(m => m.name === mName);
+            btn.className = "move-btn";
+            btn.innerHTML = `<strong>${mName}</strong><br><small>${mData.type}/${mData.cat}</small>`;
+            btn.onclick = () => submitAction("move", mName);
+            moveContainer.appendChild(btn);
+        });
+    }
+}
+
+// ★追加関数：強制交代用のメニュー表示★
+function renderForcedSwitchMenu() {
+    const menu = document.getElementById("switch-menu");
+    const container = document.getElementById("switch-options");
+    container.innerHTML = "";
+    menu.classList.remove("hidden");
+    
+    // 戻るボタンを隠す（交代必須のため）
+    const buttons = menu.getElementsByTagName("button");
+    for(let btn of buttons) {
+        if(btn.innerText === "戻る") btn.style.display = "none";
+    }
+
+    const myData = battleState[mySide];
+    let canSwitch = false;
+
+    myData.team.forEach((pkmn, idx) => {
+        if (idx === myData.activeIndex) return; 
+        const btn = document.createElement("button");
+        btn.innerText = `${pkmn.name} (HP: ${pkmn.currentHp})`;
+        btn.className = "move-btn"; // スタイル合わせ
+        
+        if (pkmn.currentHp <= 0) {
+            btn.disabled = true;
+            btn.style.opacity = 0.5;
+        } else {
+            canSwitch = true;
+            btn.onclick = () => submitForcedSwitch(idx);
+        }
+        container.appendChild(btn);
+    });
+
+    if(!canSwitch) {
+         container.innerHTML = "<p style='color:red'>戦えるポケモンがいません！<br>（本来はここで敗北判定になります）</p>";
+    }
+}
+
+// ★追加関数：強制交代の実行（ターン消費なし）★
+function submitForcedSwitch(newIdx) {
+    const roomRef = db.ref("rooms/" + roomId);
+    
+    // 自分のアクティブポケモンを更新
+    roomRef.child(mySide).update({ activeIndex: newIdx }).then(() => {
+        // 全員復活したか確認して、バトル再開 (phase: ready) に戻す
+        // これはトランザクション的に行うのが安全ですが、今回は簡易的に読み取って更新します
+        roomRef.once("value", snap => {
+            const val = snap.val();
+            const p1Alive = val.p1.team[val.p1.activeIndex].currentHp > 0;
+            const p2Alive = val.p2.team[val.p2.activeIndex].currentHp > 0;
+
+            if (p1Alive && p2Alive) {
+                // ログに繰り出しメッセージを追加
+                const newLog = [...val.log, `${val[mySide].name}は ${val[mySide].team[newIdx].name} を繰り出した！`];
+                roomRef.update({ 
+                    phase: "ready",
+                    log: newLog
+                });
+            } else {
+                // まだ相手が選んでいない場合、メッセージだけ出す（または何もしない）
+                // 相手が選び終わったタイミングで上記のif文が通り、readyになる
+            }
+        });
+    });
+}
+function updateHpBar(side, current, max) {
+    const bar = document.getElementById(`${side}-hp-bar`);
+    const text = document.getElementById(`${side}-hp-text`);
+    const pct = Math.floor((current / max) * 100);
+    bar.style.width = pct + "%";
+    bar.style.backgroundColor = pct > 50 ? "#4caf50" : pct > 20 ? "#ffeb3b" : "#f44336";
+    text.innerText = `${current}/${max} (${pct}%)`;
+}
+
+function renderStatus(side, status) {
+    const container = document.getElementById(`${side}-status-badges`);
+    container.innerHTML = "";
+    if (status) {
+        const span = document.createElement("span");
+        span.className = "status-badge " + (status === "poison" ? "status-psn" : "status-slp");
+        span.innerText = status === "poison" ? "どく" : "ねむり";
+        container.appendChild(span);
+    }
+}
+
+/* --- ACTIONS --- */
+function showSwitchMenu() {
+    const menu = document.getElementById("switch-menu");
+    const container = document.getElementById("switch-options");
+    container.innerHTML = "";
+    menu.classList.remove("hidden");
+    document.getElementById("action-panel").classList.add("hidden");
+
+    // ★追加：戻るボタンを再表示（強制交代時に消している可能性があるため）★
+    const buttons = menu.getElementsByTagName("button");
+    for(let btn of buttons) {
+        if(btn.innerText === "戻る") btn.style.display = "inline-block";
+    }
+
+    battleState[mySide].team.forEach((pkmn, idx) => {
+        if (idx === battleState[mySide].activeIndex) return;
+        const btn = document.createElement("button");
+        btn.innerText = `${pkmn.name} (HP: ${pkmn.currentHp})`;
+        // 見やすくスタイル調整
+        btn.style.width = "100%"; 
+        btn.style.marginBottom = "5px";
+        btn.style.padding = "10px";
+
+        if (pkmn.currentHp <= 0) btn.disabled = true;
+        btn.onclick = () => {
+            submitAction("switch", null, idx);
+            cancelSwitch();
+        };
+        container.appendChild(btn);
+    });
+}
+
+function cancelSwitch() {
+    document.getElementById("switch-menu").classList.add("hidden");
+    document.getElementById("action-panel").classList.remove("hidden");
+}
+
+function submitAction(type, moveName, switchIdx) {
+    if (battleState[mySide].action) return; // 既に選択済み
+
+    const action = { type: type };
+    if (type === "move") action.move = moveName;
+    if (type === "switch") action.idx = switchIdx;
+
+    db.ref(`rooms/${roomId}/${mySide}/action`).set(action);
+}
+
+function returnToTeamSelect() {
+    // 1. Firebase監視を解除 (古い部屋の更新を受け取らないようにする)
+    if (unsubscribe) {
+        db.ref("rooms/" + roomId).off(); // リスナー解除
+        unsubscribe = null;
+    }
+
+    // 2. チーム情報の回復 (HPなどを初期値に戻す)
+    myTeam.forEach(p => {
+        p.currentHp = p.maxHp;
+        // なつうみ以外はステータス異常解除
+        p.status = (p.ability === "ぜったいねむり") ? "sleep" : null;
+        // ランク補正リセット
+        p.statStages = {at:0, df:0, sa:0, sd:0, sp:0, acc:0, eva:0};
+    });
+
+    // 3. 画面切り替え
+    document.getElementById("screen-battle").classList.add("hidden");
+    document.getElementById("screen-team").classList.remove("hidden");
+    
+    // バトル画面のパネルを初期状態に戻しておく（「YOU WIN」などの消去）
+    document.getElementById("action-panel").innerHTML = `
+        <h4>行動選択</h4>
+        <div class="move-grid" id="move-buttons"></div>
+        <button id="switch-btn" onclick="showSwitchMenu()" style="background:#2196F3">ポケモン交代</button>
+    `;
+
+    // 4. チーム編成画面を描画し、直前の構成を反映させる
+    renderTeamBuilder(myTeam); 
+}
+
+// 既存の renderTeamBuilder を改良して、引数を受け取れるようにします
+function renderTeamBuilder(prefillTeam = null) {
+    const container = document.getElementById("team-builder-container");
+    container.innerHTML = "";
+    
+    // 選択済みのIDリスト、技マップを作成
+    const selectedIds = prefillTeam ? prefillTeam.map(p => p.id) : [];
+    const movesMap = {}; // { pokemonId: [move1, move2, move3, move4] }
+    
+    if (prefillTeam) {
+        prefillTeam.forEach(p => {
+            movesMap[p.id] = p.moves;
+        });
+    }
+
+    Object.keys(POKEMON_DB).forEach(id => {
+        const pkmn = POKEMON_DB[id];
+        const isChecked = selectedIds.includes(id) ? "checked" : "";
+        const div = document.createElement("div");
+        div.className = "pokemon-select";
+        
+        // 技選択のプルダウンを4つ作成
+        let movesHtml = "";
+        const prefillMoves = movesMap[id] || ["", "", "", ""]; // 選択済み技リスト、なければ空
+
+        for(let i=0; i<4; i++){
+            // 選択されている技があれば selected 属性をつける
+            const currentMove = prefillMoves[i] || "";
+            
+            const options = `
+                <option value="">技${i+1}を選択</option>
+                ${MOVES_DB.map(m => {
+                    const selected = (m.name === currentMove) ? "selected" : "";
+                    return `<option value="${m.name}" ${selected}>${m.name} (${m.type})</option>`;
+                }).join('')}
+            `;
+            
+            movesHtml += `<select class="move-select" data-id="${id}">${options}</select>`;
+        }
+
+        div.innerHTML = `
+            <label>
+                <input type="checkbox" class="pkmn-check" value="${id}" ${isChecked}> 
+                <strong>${pkmn.name}</strong> (${pkmn.types.join("/")})
+            </label>
+            <div class="stat-preview">特性: ${pkmn.ability} | H:${pkmn.stats.hp} A:${pkmn.stats.at} B:${pkmn.stats.df} C:${pkmn.stats.sa} D:${pkmn.stats.sd} S:${pkmn.stats.sp}</div>
+            <div style="margin-top:5px; display:grid; grid-template-columns:1fr 1fr; gap:5px;">${movesHtml}</div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+</script>
+</body>
+</html>
