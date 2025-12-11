@@ -88,14 +88,37 @@ function updateSelectedCount() {
  * Finalize team selection and proceed to lobby
  */
 function finalizeTeam() {
+    const team = buildTeamFromUI();
+    if (!team) return; // Validation failed
+
+    myTeam = team;
+
+
+
+
+    // Save team to Firebase (linked to player name)
+    db.ref(`players/${playerName}`).set({
+        team: myTeam,
+        lastUpdated: Date.now()
+    });
+
+    ui.showScreen('screen-lobby');
+    document.getElementById('display-name').textContent = playerName;
+}
+
+/**
+ * Build team array from UI selections
+ * Returns null if validation fails
+ */
+function buildTeamFromUI() {
     const checkboxes = document.querySelectorAll('.pokemon-checkbox:checked');
 
     if (checkboxes.length !== 3) {
         alert('ポケモンを3体選択してください');
-        return;
+        return null;
     }
 
-    myTeam = [];
+    const team = [];
     let isValid = true;
 
     checkboxes.forEach(checkbox => {
@@ -140,29 +163,121 @@ function finalizeTeam() {
             sleepTurns: pokemon.ability.name === "ぜったいねむり" ? 999 : 0,
             statStages: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
             weaknessPolicyUsed: false,
-            badPoisonCounter: 0
+            badPoisonCounter: 0,
+            chargingTurn: false,
+            invulnerableState: null,
+            substituteHp: 0
         };
 
-        myTeam.push(teamPokemon);
+        team.push(teamPokemon);
     });
 
     if (!isValid) {
         alert('各ポケモンに技を4つ選択してください');
+        return null;
+    }
+
+    return team;
+}
+
+/**
+ * Save current team to Firebase
+ */
+function saveTeam() {
+    const team = buildTeamFromUI();
+    if (!team) return;
+
+    if (!playerName) {
+        alert('プレイヤー名が設定されていません');
         return;
     }
 
-    // Save team to Firebase (linked to player name)
-    db.ref(`players/${playerName}`).set({
-        team: myTeam,
-        lastUpdated: Date.now()
+    // Minify data for storage (store only necessary IDs/names)
+    // Actually, storing the full object is easier for now to reload
+    // But to be cleaner, we should trust the schema.
+    // However, for loading back to UI, we need the moves and items.
+
+    const saveDate = {
+        team: team.map(p => ({
+            id: p.id,
+            moves: p.moves,
+            item: p.item
+        })),
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    db.ref(`players/${playerName}`).set(saveDate)
+        .then(() => alert('チームを保存しました！'))
+        .catch(err => alert('保存に失敗しました: ' + err.message));
+}
+
+/**
+ * Load team from Firebase
+ */
+function loadTeam() {
+    if (!playerName) {
+        alert('プレイヤー名が設定されていません');
+        return;
+    }
+
+    db.ref(`players/${playerName}`).once('value')
+        .then(snapshot => {
+            if (!snapshot.exists()) {
+                alert('保存されたチームが見つかりません');
+                return;
+            }
+            const data = snapshot.val();
+            if (data.team) {
+                restoreTeamToUI(data.team);
+                alert('チームを読み込みました！');
+            }
+        })
+        .catch(err => alert('読み込みに失敗しました: ' + err.message));
+}
+
+/**
+ * Restore team data to UI
+ */
+function restoreTeamToUI(savedTeam) {
+    // Reset all selections
+    const allCheckboxes = document.querySelectorAll('.pokemon-checkbox');
+    allCheckboxes.forEach(cb => {
+        cb.checked = false;
+        cb.closest('.pokemon-card').classList.remove('selected');
     });
 
-    ui.showScreen('screen-lobby');
-    document.getElementById('display-name').textContent = playerName;
+    // Restore selections
+    savedTeam.forEach(savedPoke => {
+        const pokemonId = savedPoke.id;
+        const checkbox = document.querySelector(`.pokemon-checkbox[value="${pokemonId}"]`);
+
+        if (checkbox) {
+            checkbox.checked = true;
+            const card = checkbox.closest('.pokemon-card');
+            card.classList.add('selected');
+
+            // Restore Moves
+            const moveSelects = card.querySelectorAll('.move-select');
+            savedPoke.moves.forEach((moveName, index) => {
+                if (moveSelects[index]) {
+                    moveSelects[index].value = moveName;
+                }
+            });
+
+            // Restore Item
+            const itemSelect = card.querySelector('.item-select');
+            if (itemSelect && savedPoke.item) {
+                itemSelect.value = savedPoke.item;
+            }
+        }
+    });
+
+    updateSelectedCount();
 }
 
 /**
  * Create a new battle room
+
  */
 function createRoom() {
     const input = document.getElementById('create-room-pass');
@@ -251,7 +366,9 @@ function joinRoom() {
  */
 function startBattle() {
     ui.showScreen('screen-battle');
+    ui.resetActionPanel();
     document.getElementById('room-info').textContent = `部屋: ${roomId}`;
+
 
     const roomRef = db.ref(`rooms/${roomId}`);
 
@@ -496,8 +613,30 @@ function resolveTurn() {
 
         // Handle move
         if (action.type === 'move') {
+            // Double check for fainted state (defensive programming)
+            if (actor.currentHp <= 0) return;
+
             const move = pokemonMoves.find(m => m.name === action.move);
             if (!move) return;
+
+            // Two-Turn Move Logic (Dig/Fly)
+            if (move.effect && move.effect.semi_invulnerable) {
+                if (!actor.chargingTurn) {
+                    actor.chargingTurn = true;
+                    actor.invulnerableState = move.effect.semi_invulnerable;
+                    if (move.name === 'あなをほる') logs.push(`${actor.name}は 穴を 掘った！`);
+                    if (move.name === 'そらをとぶ') logs.push(`${actor.name}は 空 高く 飛び上がった！`);
+                    return; // Skip rest of turn
+                } else {
+                    // Execute attack
+                    actor.chargingTurn = false;
+                    actor.invulnerableState = null;
+                }
+            } else {
+                // Reset any existing (shouldn't happen if logic is correct but good safety)
+                actor.chargingTurn = false;
+                actor.invulnerableState = null;
+            }
 
             // Set Choice Lock
             if (actor.item && actor.item.startsWith('choice-') && !actor.choiceMove) {
@@ -529,12 +668,14 @@ function resolveTurn() {
                 return;
             }
 
-            // Accuracy check
-            if (move.accuracy && move.accuracy !== Infinity) {
-                if (Math.random() * 100 > move.accuracy) {
+            // Accuracy & Invulnerability check
+            if (!battleEngine.checkHit(actor, target, move)) {
+                if (target.invulnerableState) {
+                    logs.push(`${target.name}には 当たらなかった！`); // Special message?
+                } else {
                     logs.push(`しかし ${target.name}には 当たらなかった！`);
-                    return;
                 }
+                return;
             }
 
             // Damage calculation
@@ -550,16 +691,31 @@ function resolveTurn() {
                 // Focus Sash Logic
                 let finalDamage = damage;
                 if (target.item === 'focus-sash' && target.currentHp === target.maxHp && damage >= target.currentHp) {
-                    finalDamage = target.currentHp - 1;
-                    target.item = null; // Consume item
-                    logs.push(`${target.name}は きあいのタスキで 持ちこたえた！`);
+                    // Only works if no substitute
+                    if (!target.substituteHp || target.substituteHp <= 0) {
+                        finalDamage = target.currentHp - 1;
+                        target.item = null; // Consume item
+                        logs.push(`${target.name}は きあいのタスキで 持ちこたえた！`);
+                    }
                 }
 
-                target.currentHp = Math.max(0, target.currentHp - finalDamage);
-
-                logs.push(`${target.name}に${finalDamage}ダメージ！`);
+                // Apply Damage (Substitute check)
+                if (target.substituteHp > 0) {
+                    target.substituteHp -= finalDamage;
+                    logs.push(`みがわりが ダメージを 受けた！`);
+                    if (target.substituteHp <= 0) {
+                        target.substituteHp = 0;
+                        logs.push(`${target.name}の みがわりは 壊れた！`);
+                    }
+                    // No overflow damage to actual HP
+                    finalDamage = 0;
+                } else {
+                    target.currentHp = Math.max(0, target.currentHp - finalDamage);
+                    logs.push(`${target.name}に${finalDamage}ダメージ！`);
+                }
 
                 // Apply move effects
+                // (Note: Status effects might be blocked by substitute, handled in battle-engine)
                 battleEngine.applyMoveEffects(actor, target, move, finalDamage, logs);
 
                 // Handle Weakness Policy consumption
@@ -577,6 +733,7 @@ function resolveTurn() {
             }
         }
     });
+
 
     // End of turn effects (if battle continues)
     const p1Active = state.p1.team[state.p1.activeIndex];
@@ -627,6 +784,7 @@ function returnToTeamBuilder() {
         db.ref(`rooms/${roomId}`).off('value', roomListener);
         roomListener = null;
     }
+    battleState = null;
 
     // Reset team HP and status
     myTeam.forEach(pokemon => {
@@ -634,7 +792,12 @@ function returnToTeamBuilder() {
         pokemon.status = pokemon.ability.name === "ぜったいねむり" ? "sleep" : null;
         pokemon.statStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
         pokemon.weaknessPolicyUsed = false;
+        pokemon.statStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+        pokemon.weaknessPolicyUsed = false;
         pokemon.badPoisonCounter = 0;
+        pokemon.chargingTurn = false;
+        pokemon.invulnerableState = null;
+        pokemon.substituteHp = 0;
     });
 
     ui.showScreen('screen-team');

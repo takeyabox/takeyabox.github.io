@@ -40,6 +40,24 @@ class BattleEngine {
     }
 
     /**
+     * Check if attack hits (handling invulnerability and accuracy)
+     */
+    checkHit(attacker, defender, move) {
+        // Invulnerability Check (Dig/Fly)
+        if (defender.invulnerableState) {
+            // Specific counters can skip this (e.g. Earthquake hits Dig), but for now simple block
+            // Allow self-targeting moves
+            if (attacker === defender) return true;
+            return false;
+        }
+
+        // Accuracy check
+        if (!move.accuracy || move.accuracy === Infinity) return true;
+        return Math.random() * 100 <= move.accuracy;
+    }
+
+
+    /**
      * Calculate all damage modifiers
      */
     calculateModifiers(attacker, defender, move, battleState) {
@@ -265,6 +283,11 @@ class BattleEngine {
         }
         if (status === 'freeze' && (pokemon.types.includes('こおり') || this.weather === 'sunny')) {
             return { success: false, message: `${pokemon.name}には効果がない!` };
+        }
+
+        // Cannot status a Substitute
+        if (pokemon.substituteHp > 0) {
+            return { success: false, message: "みがわりが防いだ!" };
         }
 
         // Apply status
@@ -507,8 +530,46 @@ class BattleEngine {
             logs.push(`${attacker.name}は 守りの 体勢に 入った！`);
         }
 
+        // Recovery
+        if (move.effect && move.effect.recovery) {
+            let healAmount = 0;
+            if (move.effect.recovery === "50") {
+                healAmount = Math.floor(attacker.maxHp / 2);
+            } else if (move.effect.recovery === "100") {
+                healAmount = attacker.maxHp;
+            } else if (move.effect.recovery === "variable") {
+                // Synthesis / Moonlight
+                if (this.weather === 'sunny') healAmount = Math.floor(attacker.maxHp * 2 / 3);
+                else if (this.weather === 'rain' || this.weather === 'sandstorm' || this.weather === 'hail') healAmount = Math.floor(attacker.maxHp / 4);
+                else healAmount = Math.floor(attacker.maxHp / 2);
+            }
+
+            attacker.currentHp = Math.min(attacker.maxHp, attacker.currentHp + healAmount);
+            logs.push(`${attacker.name}の 体力が 回復した！`);
+
+            // Rest specific
+            if (move.name === "ねむる") {
+                attacker.status = "sleep";
+                attacker.sleepTurns = 2;
+                logs.push(`${attacker.name}は 眠って 元気に なった！`);
+            }
+        }
+
+        // Substitute
+        if (move.name === "みがわり") {
+            const cost = Math.floor(attacker.maxHp / 4);
+            if (attacker.currentHp > cost) {
+                attacker.currentHp -= cost;
+                attacker.substituteHp = cost;
+                logs.push(`${attacker.name}は 自分の 体力を 削って 分身を 作った！`);
+            } else {
+                logs.push(`しかし うまく 決まらなかった！`);
+            }
+        }
+
         return effects;
     }
+
 
     /**
      * Determine turn order

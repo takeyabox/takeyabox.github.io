@@ -309,6 +309,21 @@ class UIController {
     }
 
     /**
+     * Reset action panel to default state
+     */
+    resetActionPanel() {
+        const actionPanel = document.getElementById('action-panel');
+        actionPanel.innerHTML = `
+            <h4>次の行動を選択</h4>
+            <div id="move-buttons" class="move-grid"></div>
+            <button id="switch-btn" class="btn-switch" onclick="showSwitchMenu()">
+                ポケモン交代
+            </button>
+        `;
+    }
+
+
+    /**
      * Create Pokemon selection card for team builder
      */
     createPokemonCard(pokemon, isSelected, onCheckChange, compatibleMoves) {

@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新富STREET謹製 ポケモンバトル</title>
-    
+
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- Stylesheets -->
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="background-animation"></div>
-    
+
     <div class="container">
         <!-- Login Screen -->
         <div id="screen-login" class="screen">
@@ -42,13 +44,18 @@
             <div class="team-panel glass-panel">
                 <h2>チーム編成</h2>
                 <p class="instruction">手持ちポケモンを<strong>3体</strong>選び、各ポケモンに技を<strong>4つ</strong>、特性と持ち物を選択してください。</p>
-                
+
                 <div id="team-builder-container"></div>
-                
+
                 <div class="team-summary" id="team-summary">
                     選択中: <span id="selected-count">0</span>/3体
                 </div>
-                
+
+                <div class="team-actions">
+                    <button class="btn-secondary" onclick="saveTeam()">チームを保存</button>
+                    <button class="btn-secondary" onclick="loadTeam()">チームを読み込む</button>
+                </div>
+
                 <button class="btn-primary" onclick="finalizeTeam()">
                     チームを決定する
                     <span class="btn-arrow">→</span>
@@ -61,7 +68,7 @@
             <div class="lobby-panel glass-panel">
                 <h2>対戦ロビー</h2>
                 <h3 class="player-welcome">ようこそ、<span id="display-name" class="player-name-display"></span>さん</h3>
-                
+
                 <div class="lobby-options">
                     <div class="lobby-section">
                         <h4>部屋を作成</h4>
@@ -73,9 +80,9 @@
                             部屋を作る
                         </button>
                     </div>
-                    
+
                     <div class="lobby-divider">OR</div>
-                    
+
                     <div class="lobby-section">
                         <h4>部屋に参加</h4>
                         <p class="lobby-description">相手から教えてもらったパスワードを入力</p>
@@ -173,4 +180,5 @@
     <script src="ui-controller.js"></script>
     <script src="game.js"></script>
 </body>
+
 </html>

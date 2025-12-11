@@ -397,6 +397,14 @@ button:hover .btn-arrow {
     color: #4facfe;
 }
 
+.team-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 15px 0;
+}
+
+
 /* Lobby */
 .lobby-panel {
     max-width: 700px;
