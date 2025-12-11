@@ -4,10 +4,15 @@
  */
 
 // Initialize Firebase
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+if (typeof firebase !== 'undefined') {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+} else {
+    console.error("Firebase SDK not loaded.");
 }
-const db = firebase.database();
+const db = (typeof firebase !== 'undefined') ? firebase.database() : null;
+
 
 // Game state
 let playerName = '';
@@ -37,6 +42,8 @@ function goToTeamSelect() {
     ui.showScreen('screen-team');
     renderTeamBuilder();
 }
+window.goToTeamSelect = goToTeamSelect;
+
 
 /**
  * Render team builder interface
@@ -103,8 +110,11 @@ function finalizeTeam() {
     });
 
     ui.showScreen('screen-lobby');
+    ui.showScreen('screen-lobby');
     document.getElementById('display-name').textContent = playerName;
 }
+window.finalizeTeam = finalizeTeam;
+
 
 /**
  * Build team array from UI selections
@@ -211,6 +221,9 @@ function saveTeam() {
         .catch(err => alert('保存に失敗しました: ' + err.message));
 }
 
+window.saveTeam = saveTeam;
+
+
 /**
  * Load team from Firebase
  */
@@ -234,6 +247,9 @@ function loadTeam() {
         })
         .catch(err => alert('読み込みに失敗しました: ' + err.message));
 }
+
+window.loadTeam = loadTeam;
+
 
 /**
  * Restore team data to UI
@@ -700,6 +716,7 @@ function resolveTurn() {
                 }
 
                 // Apply Damage (Substitute check)
+                let executedDamage = finalDamage;
                 if (target.substituteHp > 0) {
                     target.substituteHp -= finalDamage;
                     logs.push(`みがわりが ダメージを 受けた！`);
@@ -716,7 +733,7 @@ function resolveTurn() {
 
                 // Apply move effects
                 // (Note: Status effects might be blocked by substitute, handled in battle-engine)
-                battleEngine.applyMoveEffects(actor, target, move, finalDamage, logs);
+                battleEngine.applyMoveEffects(actor, target, move, executedDamage, logs);
 
                 // Handle Weakness Policy consumption
                 if (target.weaknessPolicyUsed) {
