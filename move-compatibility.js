@@ -17,7 +17,7 @@ const moveCompatibility = {
         "シャドーボール", "あくのはどう"
     ],
     3: [ // たかす (みず/どく)
-        "ハイドロポンプ", "なみのり", "アクアブレイク", "たきのぼり", "クイックターン","アクアジェット",
+        "ハイドロポンプ", "なみのり", "アクアブレイク", "たきのぼり", "クイックターン",
         "ヘドロばくだん", "ヘドロウェーブ", "どくづき", "どくどく", "どくびし", "ダストシュート",
         "れいとうビーム", "こおりのキバ",
         "まもる", "みがわり", "じこさいせい"
@@ -80,5 +80,6 @@ function canLearnMove(pokemonId, moveName) {
     const compatibleMoves = moveCompatibility[pokemonId] || [];
     return compatibleMoves.includes(moveName);
 }
+
 
 
