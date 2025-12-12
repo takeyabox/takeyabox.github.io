@@ -1187,7 +1187,597 @@ const pokemonMoves = [
         effect: {
             stat_change: [{ target: "self", stat: "atk", stage: 2, chance: 100 }]
         }
+    },
+    // --- 追加分 ---
+    {
+        name: "アシッドボム",
+        type: "どく",
+        power: 40,
+        category: "特殊",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "opponent", stat: "spd", stage: -2, chance: 100 }]
+        }
+    },
+    {
+        name: "だくりゅう",
+        type: "みず",
+        power: 90,
+        category: "特殊",
+        accuracy: 85,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "opponent", stat: "accuracy", stage: -1, chance: 30 }]
+        }
+    },
+    {
+        name: "どろかけ",
+        type: "じめん",
+        power: 20,
+        category: "特殊",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "opponent", stat: "accuracy", stage: -1, chance: 100 }]
+        }
+    },
+    {
+        name: "アンコール",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "3ターン同じ技を出させる",
+            volatile_status: "encore"
+        }
+    },
+    {
+        name: "はらだいこ",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "HP半分削り攻撃最大",
+            sets_stat: { stat: "atk", stage: 6 }
+        }
+    },
+    {
+        name: "ころがる",
+        type: "いわ",
+        power: 30,
+        category: "物理",
+        accuracy: 90,
+        priority: 0,
+        effect: {
+            special_condition: "当たるたびに威力上昇"
+        }
+    },
+    {
+        name: "まるくなる",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "self", stat: "def", stage: 1, chance: 100 }],
+            special_condition: "ころがるの威力2倍"
+        }
+    },
+    {
+        name: "おいわい",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "特になし"
+        }
+    },
+    {
+        name: "ほおばる",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "きのみを食べて防御ぐぐーんと上昇",
+            stat_change: [{ target: "self", stat: "def", stage: 2, chance: 100 }]
+        }
+    },
+    {
+        name: "たくわえる",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [
+                { target: "self", stat: "def", stage: 1, chance: 100 },
+                { target: "self", stat: "spd", stage: 1, chance: 100 }
+            ],
+            special_condition: "3回まで蓄える"
+        }
+    },
+    {
+        name: "のみこむ",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            recovery: "stockpile_dependent"
+        }
+    },
+    {
+        name: "とける",
+        type: "どく",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "self", stat: "def", stage: 2, chance: 100 }]
+        }
+    },
+    {
+        name: "どわすれ",
+        type: "エスパー",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "self", stat: "spd", stage: 2, chance: 100 }]
+        }
+    },
+    {
+        name: "スピードスワップ",
+        type: "エスパー",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "互いの素早さ実数値を入れ替える"
+        }
+    },
+    {
+        name: "こうそくスピン",
+        type: "ノーマル",
+        power: 50,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "self", stat: "spe", stage: 1, chance: 100 }],
+            special_condition: "設置技を除去"
+        }
+    },
+    {
+        name: "はたく",
+        type: "ノーマル",
+        power: 40,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {}
+    },
+    {
+        name: "したでなめる",
+        type: "ゴースト",
+        power: 30,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            status_ailment: { name: "paralysis", chance: 30 }
+        }
+    },
+    {
+        name: "トーチカ",
+        type: "どく",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 4,
+        effect: {
+            shield: true,
+            special_condition: "接触した相手を毒にする"
+        }
+    },
+    {
+        name: "ゲップ",
+        type: "どく",
+        power: 120,
+        category: "特殊",
+        accuracy: 90,
+        priority: 0,
+        effect: {
+            special_condition: "きのみ消費後のみ使用可能"
+        }
+    },
+    {
+        name: "ひやみず",
+        type: "みず",
+        power: 50,
+        category: "特殊",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "opponent", stat: "atk", stage: -1, chance: 100 }]
+        }
+    },
+    {
+        name: "さむいギャグ",
+        type: "こおり",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            weather: "hail", // Snow in gen 9 but hail for now
+            switch_self: true
+        }
+    },
+    {
+        name: "からげんき",
+        type: "ノーマル",
+        power: 70,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "状態異常で威力2倍"
+        }
+    },
+    {
+        name: "なげつける",
+        type: "あく",
+        power: "Variable",
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "持ち物を投げる"
+        }
+    },
+    {
+        name: "のしかかり",
+        type: "ノーマル",
+        power: 85,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            status_ailment: { name: "paralysis", chance: 30 }
+        }
+    },
+    {
+        name: "であいがしら",
+        type: "むし",
+        power: 90,
+        category: "物理",
+        accuracy: 100,
+        priority: 2,
+        effect: {
+            special_condition: "出た直後のみ成功"
+        }
+    },
+    {
+        name: "とどめばり",
+        type: "むし",
+        power: 50,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "倒すと攻撃3段階上昇",
+            on_ko_stat_change: { stat: "atk", stage: 3 }
+        }
+    },
+    {
+        name: "アシストパワー",
+        type: "エスパー",
+        power: 20,
+        category: "特殊",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "能力ランク分威力上昇"
+        }
+    },
+    {
+        name: "かふんだんご",
+        type: "むし",
+        power: 90,
+        category: "特殊",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "味方は回復、敵は攻撃"
+        }
+    },
+    {
+        name: "ワイドブレーカー",
+        type: "ドラゴン",
+        power: 60,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "opponent", stat: "atk", stage: -1, chance: 100 }]
+        }
+    },
+    {
+        name: "はいすいのじん",
+        type: "かくとう",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [
+                { target: "self", stat: "atk", stage: 1, chance: 100 },
+                { target: "self", stat: "def", stage: 1, chance: 100 },
+                { target: "self", stat: "spa", stage: 1, chance: 100 },
+                { target: "self", stat: "spd", stage: 1, chance: 100 },
+                { target: "self", stat: "spe", stage: 1, chance: 100 }
+            ],
+            special_condition: "交代不可"
+        }
+    },
+    {
+        name: "てっぺき",
+        type: "はがね",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "self", stat: "def", stage: 2, chance: 100 }]
+        }
+    },
+    {
+        name: "ねばねばネット",
+        type: "むし",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            field_effect: "交代先の素早さを下げる罠"
+        }
+    },
+    {
+        name: "おきみやげ",
+        type: "あく",
+        power: null,
+        category: "変化",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "ひんしになり相手の攻撃特攻ダウン",
+            stat_change: [
+                { target: "opponent", stat: "atk", stage: -2, chance: 100 },
+                { target: "opponent", stat: "spa", stage: -2, chance: 100 }
+            ],
+            self_ko: true
+        }
+    },
+    {
+        name: "すてぜりふ",
+        type: "あく",
+        power: null,
+        category: "変化",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            switch_self: true,
+            stat_change: [
+                { target: "opponent", stat: "atk", stage: -1, chance: 100 },
+                { target: "opponent", stat: "spa", stage: -1, chance: 100 }
+            ]
+        }
+    },
+    {
+        name: "トリック",
+        type: "エスパー",
+        power: null,
+        category: "変化",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "自分と相手の持ち物を入れ替える"
+        }
+    },
+    {
+        name: "みちづれ",
+        type: "ゴースト",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "攻撃を受けて倒れたら相手も倒す"
+        }
+    },
+    {
+        name: "エレキネット",
+        type: "でんき",
+        power: 55,
+        category: "特殊",
+        accuracy: 95,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "opponent", stat: "spe", stage: -1, chance: 100 }]
+        }
+    },
+    {
+        name: "はねる",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "何も起こらない"
+        }
+    },
+    {
+        name: "エレキフィールド",
+        type: "でんき",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            field_effect: "5ターン電気威力上昇・眠り無効"
+        }
+    },
+    {
+        name: "はたきおとす",
+        type: "あく",
+        power: 65,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "持ち物がある相手に威力1.5倍し、持ち物を失わせる"
+        }
+    },
+    {
+        name: "ほたるび",
+        type: "むし",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "self", stat: "spa", stage: 3, chance: 100 }]
+        }
+    },
+    {
+        name: "みをけずる",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "HP半分削り攻撃特攻素早さ2段階上昇",
+            stat_change: [
+                { target: "self", stat: "atk", stage: 2, chance: 100 },
+                { target: "self", stat: "spa", stage: 2, chance: 100 },
+                { target: "self", stat: "spe", stage: 2, chance: 100 }
+            ]
+        }
+    },
+    {
+        name: "おかたづけ",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [
+                { target: "self", stat: "atk", stage: 1, chance: 100 },
+                { target: "self", stat: "spe", stage: 1, chance: 100 }
+            ],
+            special_condition: "設置技を除去"
+        }
+    },
+    {
+        name: "じたんだ",
+        type: "じめん",
+        power: 75,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            special_condition: "前のターンに技が失敗していると威力2倍"
+        }
+    },
+    {
+        name: "ウェーブタックル",
+        type: "みず",
+        power: 120,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            recoil: "33"
+        }
+    },
+    {
+        name: "からをやぶる",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            stat_change: [
+                { target: "self", stat: "def", stage: -1, chance: 100 },
+                { target: "self", stat: "spd", stage: -1, chance: 100 },
+                { target: "self", stat: "atk", stage: 2, chance: 100 },
+                { target: "self", stat: "spa", stage: 2, chance: 100 },
+                { target: "self", stat: "spe", stage: 2, chance: 100 }
+            ]
+        }
+    },
+    {
+        name: "マッドショット",
+        type: "じめん",
+        power: 55,
+        category: "特殊",
+        accuracy: 95,
+        priority: 0,
+        effect: {
+            stat_change: [{ target: "opponent", stat: "spe", stage: -1, chance: 100 }]
+        }
+    },
+    {
+        name: "ほっぺすりすり",
+        type: "でんき",
+        power: 20,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            status_ailment: { name: "paralysis", chance: 100 }
+        }
+    },
+    {
+        name: "ねっとう",
+        type: "みず",
+        power: 80,
+        category: "特殊",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            status_ailment: { name: "burn", chance: 30 }
+        }
+    },
+    {
+        name: "あまごい",
+        type: "みず",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            weather: "rain"
+        }
     }
-
 ];
-

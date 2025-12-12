@@ -63,5 +63,31 @@ const heldItems = [
         id: "black-sludge",
         name: "くろいヘドロ",
         description: "どくタイプは毎ターン最大HPの1/16回復、それ以外は1/8ダメージ"
+    },
+    {
+        id: "mirror-herb",
+        name: "ものまねハーブ",
+        description: "相手の能力が上がった時、自分も同じだけ能力を上げる(1回)"
+    },
+    {
+        id: "ability-shield",
+        name: "とくせいガード",
+        description: "相手の技や特性の効果で、自分の特性が無効化・変更されない"
+    },
+    {
+        id: "loaded-dice",
+        name: "いかさまダイス",
+        description: "連続技が当たりやすくなる(4回以上)"
+    },
+    {
+        id: "sitrus-berry",
+        name: "オボンのみ",
+        description: "HPが半分以下になった時、最大HPの1/4回復する(1回)"
+    },
+    {
+        id: "wide-lens",
+        name: "こうかくレンズ",
+        description: "技の命中率が1.1倍になる"
     }
+
 ];

@@ -76,12 +76,22 @@ function handlePokemonCheckChange(event) {
     updateSelectedCount();
 
     const card = event.target.closest('.pokemon-card');
+    const leadRadio = card.querySelector('.lead-radio');
+
     if (event.target.checked) {
         card.classList.add('selected');
+        leadRadio.disabled = false;
+        // If no lead selected yet, select this one?
+        if (!document.querySelector('input[name="team-lead"]:checked')) {
+            leadRadio.checked = true;
+        }
     } else {
         card.classList.remove('selected');
+        leadRadio.disabled = true;
+        leadRadio.checked = false;
     }
 }
+
 
 /**
  * Update selected Pokemon count display
@@ -176,8 +186,12 @@ function buildTeamFromUI() {
             badPoisonCounter: 0,
             chargingTurn: false,
             invulnerableState: null,
-            substituteHp: 0
+            invulnerableState: null,
+            substituteHp: 0,
+            protectSuccessCount: 0,
+            mustRecharge: false
         };
+
 
         team.push(teamPokemon);
     });
@@ -187,8 +201,20 @@ function buildTeamFromUI() {
         return null;
     }
 
+    // Lead processing
+    const leadRadio = document.querySelector('input[name="team-lead"]:checked');
+    if (!leadRadio) {
+        alert('先発のポケモンを選択してください');
+        return null;
+    }
+    const leadId = parseInt(leadRadio.value);
+
+    // Sort team: Lead first
+    team.sort((a, b) => (a.id === leadId ? -1 : b.id === leadId ? 1 : 0));
+
     return team;
 }
+
 
 /**
  * Save current team to Firebase
@@ -283,13 +309,25 @@ function restoreTeamToUI(savedTeam) {
             // Restore Item
             const itemSelect = card.querySelector('.item-select');
             if (itemSelect && savedPoke.item) {
+
                 itemSelect.value = savedPoke.item;
+            }
+
+            // Restore Lead (if this is the first one in savedTeam, check it)
+            // Ideally savedTeam order is preserved (Lead is index 0)
+            const leadRadio = card.querySelector('.lead-radio');
+            if (leadRadio) {
+                leadRadio.disabled = false;
+                if (savedPoke.id === savedTeam[0].id) {
+                    leadRadio.checked = true;
+                }
             }
         }
     });
 
     updateSelectedCount();
 }
+
 
 /**
  * Create a new battle room
@@ -313,8 +351,11 @@ function createRoom() {
             name: playerName,
             team: myTeam,
             activeIndex: 0,
-            action: null
+            action: null,
+            tailwindTurns: 0,
+            hazards: { stealthRock: false, spikes: 0, toxicSpikes: 0, stickyWeb: false }
         },
+
         p2: null,
         turn: 0,
         weather: null,
@@ -365,8 +406,11 @@ function joinRoom() {
                 name: playerName,
                 team: myTeam,
                 activeIndex: 0,
-                action: null
+                action: null,
+                tailwindTurns: 0,
+                hazards: { stealthRock: false, spikes: 0, toxicSpikes: 0, stickyWeb: false }
             },
+
             phase: 'sendout',
             log: [...room.log, `${playerName}が参加しました!`, 'バトル開始！']
         }).then(() => {
@@ -560,12 +604,26 @@ function submitForcedSwitch(index) {
 
             if (p1Active.currentHp > 0 && p2Active.currentHp > 0) {
                 const newPokemon = state[mySide].team[index];
-                const log = [...state.log, `${state[mySide].name}は${newPokemon.name}を繰り出した！`];
+                const activeSide = state[mySide];
+
+                // Note: The battle engine logic for hazards normally runs in resolveTurn
+                // But for forced switch, we should ideally run it here or in a centralized place.
+                // Since this runs locally on the valid client, we can calculate damage.
+                // We create a temp log array
+                const switchLogs = [];
+                battleEngine.applyEntryHazards(newPokemon, activeSide, switchLogs);
+
+                // Update team data after hazard damage
+                const updatedTeam = [...state[mySide].team];
+                updatedTeam[index] = newPokemon;
+
+                const log = [...state.log, `${state[mySide].name}は${newPokemon.name}を繰り出した！`, ...switchLogs];
 
                 roomRef.update({
                     phase: 'battle',
                     turn: state.turn + 1,
                     log: log,
+                    [`${mySide}/team`]: updatedTeam,
                     'p1/action': null,
                     'p2/action': null
                 });
@@ -597,9 +655,11 @@ function resolveTurn() {
     const turnOrder = battleEngine.determineTurnOrder(
         p1Data.action,
         p2Data.action,
-        p1Pokemon,
-        p2Pokemon
+        p2Pokemon,
+        p1Data.tailwindTurns > 0,
+        p2Data.tailwindTurns > 0
     );
+
 
     // Execute actions in order
     turnOrder.forEach((side, orderIndex) => {
@@ -617,13 +677,21 @@ function resolveTurn() {
             // Reset volatile status of current pokemon (the one switching OUT)
             actor.statStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
             actor.confusionTurns = 0;
+            actor.badPoisonCounter = 0;
+            actor.substituteHp = 0;
+            actor.isProtected = false;
+            actor.chargingTurn = false;
+            actor.invulnerableState = null;
             if (actor.status === 'confusion') actor.status = null;
             actor.choiceMove = null;
-            actor.isProtected = false;
 
+            // Perform switch
             state[actorSide].activeIndex = action.switchIndex;
-            const newPokemon = state[actorSide].team[action.switchIndex];
-            logs.push(`${state[actorSide].name}は${newPokemon.name}に交代した！`);
+            const newPokemon = state[actorSide].team[state[actorSide].activeIndex];
+            logs.push(`${state[actorSide].name}は ${newPokemon.name}に 交代した！`);
+
+            // Apply Entry Hazards
+            battleEngine.applyEntryHazards(newPokemon, state[actorSide], logs);
             return;
         }
 
@@ -632,8 +700,19 @@ function resolveTurn() {
             // Double check for fainted state (defensive programming)
             if (actor.currentHp <= 0) return;
 
+            if (actor.currentHp <= 0) return;
+
+            // Recharge Check
+            if (actor.mustRecharge) {
+                logs.push(`${actor.name}は 反動で 動けない！`);
+                actor.mustRecharge = false;
+                actor.protectSuccessCount = 0; // Reset protect count too? Yes, probably.
+                return;
+            }
+
             const move = pokemonMoves.find(m => m.name === action.move);
             if (!move) return;
+
 
             // Two-Turn Move Logic (Dig/Fly)
             if (move.effect && move.effect.semi_invulnerable) {
@@ -729,11 +808,15 @@ function resolveTurn() {
                 } else {
                     target.currentHp = Math.max(0, target.currentHp - finalDamage);
                     logs.push(`${target.name}に${finalDamage}ダメージ！`);
+                    battleEngine.checkBerryConsumption(target, logs);
                 }
+
 
                 // Apply move effects
                 // (Note: Status effects might be blocked by substitute, handled in battle-engine)
-                battleEngine.applyMoveEffects(actor, target, move, executedDamage, logs);
+                // (Note: Status effects might be blocked by substitute, handled in battle-engine)
+                battleEngine.applyMoveEffects(actor, target, move, executedDamage, logs, state[actorSide]);
+
 
                 // Handle Weakness Policy consumption
                 if (target.weaknessPolicyUsed) {
@@ -746,8 +829,10 @@ function resolveTurn() {
                 }
             } else {
                 // Status move effects
-                battleEngine.applyMoveEffects(actor, target, move, 0, logs);
+                // Status move effects
+                battleEngine.applyMoveEffects(actor, target, move, 0, logs, state[actorSide]);
             }
+
         }
     });
 
@@ -766,6 +851,17 @@ function resolveTurn() {
     // Weather update
     const weatherMsg = battleEngine.updateWeather();
     if (weatherMsg) logs.push(weatherMsg);
+
+    // Tailwind update
+    if (state.p1.tailwindTurns > 0) {
+        state.p1.tailwindTurns--;
+        if (state.p1.tailwindTurns === 0) logs.push(`${state.p1.name}の 追い風が 止んだ！`);
+    }
+    if (state.p2.tailwindTurns > 0) {
+        state.p2.tailwindTurns--;
+        if (state.p2.tailwindTurns === 0) logs.push(`${state.p2.name}の 追い風が 止んだ！`);
+    }
+
 
     // Check for battle end
     const p1Alive = state.p1.team.filter(p => p.currentHp > 0).length;

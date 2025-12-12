@@ -415,14 +415,44 @@ class UIController {
         itemSelectDiv.appendChild(itemLabel);
         itemSelectDiv.appendChild(itemSelect);
 
+        // Lead Radio (Start with this Pokemon)
+        const leadDiv = document.createElement('div');
+        leadDiv.className = 'lead-select-container';
+        leadDiv.style.marginTop = '10px';
+
+        const leadLabel = document.createElement('label');
+        leadLabel.className = 'lead-label';
+        leadLabel.style.display = 'flex';
+        leadLabel.style.alignItems = 'center';
+        leadLabel.style.cursor = 'pointer';
+
+        const leadRadio = document.createElement('input');
+        leadRadio.type = 'radio';
+        leadRadio.name = 'team-lead';
+        leadRadio.value = pokemon.id;
+        leadRadio.className = 'lead-radio';
+        leadRadio.style.marginRight = '5px';
+        leadRadio.disabled = !isSelected; // Only enable if selected
+        if (isSelected && this.currentLeadId === pokemon.id) {
+            leadRadio.checked = true;
+        }
+
+        const leadText = document.createTextNode('先発に指定');
+
+        leadLabel.appendChild(leadRadio);
+        leadLabel.appendChild(leadText);
+        leadDiv.appendChild(leadLabel);
+
         card.appendChild(header);
         card.appendChild(typesDiv);
         card.appendChild(abilityDiv);
         card.appendChild(moveSelectsDiv);
         card.appendChild(itemSelectDiv);
+        card.appendChild(leadDiv);
 
         return card;
     }
+
 
     /**
      * Update selected Pokemon count

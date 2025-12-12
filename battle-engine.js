@@ -53,8 +53,16 @@ class BattleEngine {
 
         // Accuracy check
         if (!move.accuracy || move.accuracy === Infinity) return true;
-        return Math.random() * 100 <= move.accuracy;
+
+        let modifiedAccuracy = move.accuracy;
+        // Wide Lens
+        if (attacker.item === 'wide-lens') {
+            modifiedAccuracy *= 1.1;
+        }
+
+        return Math.random() * 100 <= modifiedAccuracy;
     }
+
 
 
     /**
@@ -155,13 +163,18 @@ class BattleEngine {
     /**
      * Get effective stat value with stage modifications
      */
-    getEffectiveStat(pokemon, stat, stage, opponentAbility) {
+    /**
+     * Get effective stat value with stage modifications
+     */
+    getEffectiveStat(pokemon, stat, stage, opponentAbility, isTailwind = false) {
         let baseStat = pokemon.stats[stat];
 
         // てんねん (Unaware) ignores opponent's stat changes
-        if (opponentAbility && opponentAbility.name === "てんねん") {
+        // Ability Shield protects against this
+        if (opponentAbility && opponentAbility.name === "てんねん" && pokemon.item !== 'ability-shield') {
             stage = 0;
         }
+
 
         // たんじゅん (Simple) doubles stat changes
         if (pokemon.ability && pokemon.ability.name === "たんじゅん") {
@@ -171,13 +184,18 @@ class BattleEngine {
         // Apply stat stage multiplier
         const multiplier = stage >= 0 ?
             (2 + stage) / 2 :
-            2 / (2 - stage);
+            2 / (2 + Math.abs(stage));
 
         baseStat = Math.floor(baseStat * multiplier);
 
         // Status effects on stats
         if (stat === 'spe' && pokemon.status === 'paralysis') {
             baseStat = Math.floor(baseStat * 0.5);
+        }
+
+        // Tailwind
+        if (stat === 'spe' && isTailwind) {
+            baseStat = Math.floor(baseStat * 2);
         }
 
         // Sandstorm boosts Rock-type Sp.Def
@@ -197,6 +215,7 @@ class BattleEngine {
 
         return baseStat;
     }
+
 
     /**
      * Get ability-based damage modifier
@@ -434,13 +453,106 @@ class BattleEngine {
         }
 
         // Life Orb recoil is handled in move execution
+
+        // Consume Berries
+        this.checkBerryConsumption(pokemon, logs);
     }
+
+    /**
+     * Check and consume berries
+     */
+    checkBerryConsumption(pokemon, logs) {
+        if (!pokemon.item) return;
+
+        // Sitrus Berry
+        if (pokemon.item === 'sitrus-berry') {
+            if (pokemon.currentHp <= pokemon.maxHp / 2) {
+                const heal = Math.floor(pokemon.maxHp / 4);
+                pokemon.currentHp = Math.min(pokemon.maxHp, pokemon.currentHp + heal);
+                pokemon.item = null;
+                logs.push(`${pokemon.name}は オボンのみで 体力を 回復した！`);
+            }
+        }
+    }
+
+    /**
+     * Apply Entry Hazards (Stealth Rock, Spikes, Toxic Spikes, Sticky Web)
+     */
+    applyEntryHazards(pokemon, sideState, logs) {
+        if (!sideState || !sideState.hazards) return;
+        const hazards = sideState.hazards;
+
+        // Flying / Levitate (for Spikes/Toxic Spikes/Web) check
+        const isAirborne = pokemon.types.includes('ひこう') || (pokemon.ability && pokemon.ability.name === 'ふゆう') || pokemon.item === 'air-balloon';
+        const isHeavyDutyBoots = pokemon.item === 'heavy-duty-boots'; // Atsuzoko Boots (if implemented)
+
+        if (isHeavyDutyBoots) return; // Boots ignore all hazards
+
+        // Stealth Rock
+        if (hazards.stealthRock) {
+            let damageFactor = 1 / 8;
+            // Type effectiveness calculation for Rock
+            const effectiveness = this.getTypeEffectiveness('いわ', pokemon.types);
+            damageFactor *= effectiveness;
+
+            const damage = Math.floor(pokemon.maxHp * damageFactor);
+            if (damage > 0) {
+                pokemon.currentHp = Math.max(0, pokemon.currentHp - damage);
+                logs.push(`${pokemon.name}に とがった岩が 食い込んだ！`);
+                this.checkBerryConsumption(pokemon, logs); // Check berries (e.g. Sitrus)
+            }
+        }
+
+        // Spikes (Ground based)
+        if (hazards.spikes > 0 && !isAirborne) {
+            const damageFactors = [0, 1 / 8, 1 / 6, 1 / 4];
+            const layers = Math.min(3, hazards.spikes);
+            const damage = Math.floor(pokemon.maxHp * damageFactors[layers]);
+            if (damage > 0) {
+                pokemon.currentHp = Math.max(0, pokemon.currentHp - damage);
+                logs.push(`${pokemon.name}は まきびしの ダメージを 受けた！`);
+                this.checkBerryConsumption(pokemon, logs);
+            }
+        }
+
+        // Toxic Spikes (Ground based)
+        if (hazards.toxicSpikes > 0 && !isAirborne) {
+            // Poison types remove Toxic Spikes upon entry (if grounded)
+            if (pokemon.types.includes('どく')) {
+                hazards.toxicSpikes = 0;
+                logs.push(`${pokemon.name}は 毒びしを 回収した！`);
+            } else if (!pokemon.types.includes('はがね') && pokemon.status === null) {
+                // Steel types are immune to poisoning (except Salazzle which we don't have logic for yet)
+                const layers = Math.min(2, hazards.toxicSpikes);
+                if (layers === 1) {
+                    this.applyStatus(pokemon, 'poison', null);
+                    if (pokemon.status === 'poison') logs.push(`${pokemon.name}は 毒びしを 踏んで 毒になった！`);
+                } else {
+                    this.applyStatus(pokemon, 'bad_poison', null);
+                    if (pokemon.status === 'bad_poison') logs.push(`${pokemon.name}は 毒びしを 踏んで 猛毒になった！`);
+                }
+            }
+        }
+
+        // Sticky Web (Ground based)
+        if (hazards.stickyWeb && !isAirborne) {
+            pokemon.statStages.spe = Math.max(-6, pokemon.statStages.spe - 1);
+            logs.push(`${pokemon.name}は ねばねばネットに 引っかかった！`);
+        }
+    }
+
+
 
     /**
      * Apply move effects (stat changes, status, recoil, etc.)
      */
-    applyMoveEffects(attacker, defender, move, damage, logs) {
+    /**
+     * Apply move effects (stat changes, status, recoil, etc.)
+     */
+    applyMoveEffects(attacker, defender, move, damage, logs, attackerSideState = null, defenderSideState = null) {
+
         const effects = [];
+
 
         // Recoil damage
         if (move.effect && move.effect.recoil) {
@@ -448,6 +560,7 @@ class BattleEngine {
             const recoilDamage = Math.floor(damage * recoilPercent / 100);
             attacker.currentHp = Math.max(0, attacker.currentHp - recoilDamage);
             logs.push(`${attacker.name}は反動ダメージを受けた! (${recoilDamage}ダメージ)`);
+            this.checkBerryConsumption(attacker, logs);
         }
 
         // Life Orb recoil
@@ -455,7 +568,9 @@ class BattleEngine {
             const recoilDamage = Math.floor(attacker.maxHp / 10);
             attacker.currentHp = Math.max(0, attacker.currentHp - recoilDamage);
             logs.push(`${attacker.name}はいのちのたまのダメージを受けた!`);
+            this.checkBerryConsumption(attacker, logs);
         }
+
 
         // Rocky Helmet counter
         if (defender.item === 'rocky-helmet' && move.flags && move.flags.is_contact && damage > 0) {
@@ -503,8 +618,19 @@ class BattleEngine {
                     const levelText = Math.abs(stageChange) === 1 ? '' :
                         Math.abs(stageChange) === 2 ? 'ぐーんと' : 'ぐぐーんと';
                     logs.push(`${target.name}の${statNames[change.stat]}が${levelText}${changeText}!`);
+
+                    // Mirror Herb
+                    if (stageChange > 0) {
+                        const opponent = target === attacker ? defender : attacker;
+                        if (opponent.item === 'mirror-herb') {
+                            opponent.statStages[change.stat] = Math.min(6, opponent.statStages[change.stat] + stageChange);
+                            opponent.item = null; // Consume
+                            logs.push(`${opponent.name}は ものまねハーブで ${statNames[change.stat]}も 上がった！`);
+                        }
+                    }
                 }
             });
+
         }
 
         // Flinch
@@ -526,11 +652,91 @@ class BattleEngine {
 
         // Shield (Protect)
         if (move.effect && move.effect.shield) {
-            attacker.isProtected = true;
-            logs.push(`${attacker.name}は 守りの 体勢に 入った！`);
+            let successChance = 100;
+            // Decay: 100 -> 50 -> 25 -> 12.5
+            for (let i = 0; i < attacker.protectSuccessCount; i++) {
+                successChance /= 2; // Or use 3 for X/3 decay
+            }
+
+            if (Math.random() * 100 < successChance) {
+                attacker.isProtected = true;
+                attacker.protectSuccessCount++;
+                logs.push(`${attacker.name}は 守りの 体勢に 入った！`);
+            } else {
+                logs.push(`しかし うまく 決まらなかった！`);
+                // Failed, but does counter reset? Usually yes if it fails.
+                // But typically counter resets ONLY if a different move is selected.
+                // However, failure often doesn't reset if you keep spamming it (it keeps getting harder or stays low).
+                // Actually, if you fail, the streak is broken? No, spamming checks counter.
+                // Let's keep counter incrementing or stay high? 
+                // Standard: Consecutive execution (including failure) increases the counter.
+                // But for simplicity, let's just increment count on attempt?
+                // Actually, let's stick to simple: Success increments count. Failure?
+                // If I fail, next turn chance is 100? No, if I used it last turn.
+            }
+        } else {
+            // Not a protect move -> Reset counter
+            attacker.protectSuccessCount = 0;
         }
 
+        // Recharge Moves (Hyper Beam / Giga Impact)
+        // Check by name for now as we don't have 'recharge' effect in DB yet unless I add it
+        if (move.name === "ギガインパクト" || move.name === "はかいこうせん" || (move.effect && move.effect.recharge)) {
+            attacker.mustRecharge = true;
+        }
+
+
+        // Field Effects (Hazards etc)
+        if (move.effect && move.effect.field_effect) {
+            const effectName = move.effect.field_effect;
+            if (defenderSideState && defenderSideState.hazards) {
+                if (effectName === "相手の場に岩の罠を設置") {
+                    if (defenderSideState.hazards.stealthRock) {
+                        logs.push(`しかし うまく 決まらなかった！`);
+                    } else {
+                        defenderSideState.hazards.stealthRock = true;
+                        logs.push(`相手の場に とがった岩が 漂い始めた！`);
+                    }
+                } else if (effectName === "相手の場に毒の罠を設置") { // Toxic Spikes
+                    if (defenderSideState.hazards.toxicSpikes >= 2) {
+                        logs.push(`しかし うまく 決まらなかった！`);
+                    } else {
+                        defenderSideState.hazards.toxicSpikes++;
+                        logs.push(`相手の足元に 毒びしが 散らばった！`);
+                    }
+                } else if (effectName === "相手の場にダメージ罠を設置") { // Spikes
+                    if (defenderSideState.hazards.spikes >= 3) {
+                        logs.push(`しかし うまく 決まらなかった！`);
+                    } else {
+                        defenderSideState.hazards.spikes++;
+                        logs.push(`相手の足元に まきびしが 散らばった！`);
+                    }
+                } else if (effectName === "交代先の素早さを下げる罠") { // Sticky Web
+                    if (defenderSideState.hazards.stickyWeb) {
+                        logs.push(`しかし うまく 決まらなかった！`);
+                    } else {
+                        defenderSideState.hazards.stickyWeb = true;
+                        logs.push(`相手の足元に 粘着質のネットが 広がった！`);
+                    }
+                }
+            }
+
+            // Remover (Defog / Rapid Spin / Tidy Up)
+            if (effectName === "設置技を除去") {
+                // Rapid Spin clears OWN side hazards
+                if (attackerSideState && attackerSideState.hazards) {
+                    attackerSideState.hazards.stealthRock = false;
+                    attackerSideState.hazards.spikes = 0;
+                    attackerSideState.hazards.toxicSpikes = 0;
+                    attackerSideState.hazards.stickyWeb = false;
+                    logs.push(`${attacker.name}は 足元の 罠を 消し去った！`);
+                }
+            }
+        }
+
+
         // Recovery
+
         if (move.effect && move.effect.recovery) {
             let healAmount = 0;
             if (move.effect.recovery === "50") {
@@ -562,8 +768,38 @@ class BattleEngine {
                 attacker.currentHp -= cost;
                 attacker.substituteHp = cost;
                 logs.push(`${attacker.name}は 自分の 体力を 削って 分身を 作った！`);
+                this.checkBerryConsumption(attacker, logs);
             } else {
                 logs.push(`しかし うまく 決まらなかった！`);
+            }
+        }
+
+        // Belly Drum (Hara Daiko)
+        if (move.name === "はらだいこ") {
+            const cost = Math.floor(attacker.maxHp / 2);
+            if (attacker.currentHp > cost) {
+                attacker.currentHp -= cost;
+                attacker.statStages.atk = 6;
+                logs.push(`${attacker.name}は 体力を 削って パワー全開！`);
+                this.checkBerryConsumption(attacker, logs);
+            } else {
+                logs.push(`しかし うまく 決まらなかった！`);
+            }
+        }
+
+        // Weather Setting
+        if (move.effect && move.effect.weather) {
+            this.setWeather(move.effect.weather, 5);
+            const wNames = { 'sunny': '日差しが 強くなった', 'rain': '雨が 降り始めた', 'sandstorm': '砂嵐が 吹き始めた', 'hail': '雪が 降り始めた' };
+            logs.push(wNames[move.effect.weather] + '！');
+        }
+
+
+        // Tailwind
+        if (move.name === "おいかぜ") {
+            if (attackerSideState) {
+                attackerSideState.tailwindTurns = 4;
+                logs.push(`${attacker.name}の 後ろに 追い風が 吹いた！`);
             }
         }
 
@@ -571,10 +807,12 @@ class BattleEngine {
     }
 
 
+
     /**
      * Determine turn order
      */
-    determineTurnOrder(p1Action, p2Action, p1Pokemon, p2Pokemon) {
+    determineTurnOrder(p1Action, p2Action, p1Pokemon, p2Pokemon, p1Tailwind = false, p2Tailwind = false) {
+
         // Get priority
         const p1Priority = this.getMovePriority(p1Action);
         const p2Priority = this.getMovePriority(p2Action);
@@ -585,8 +823,8 @@ class BattleEngine {
         }
 
         // Same priority - check speed
-        const p1Speed = this.getEffectiveStat(p1Pokemon, 'spe', p1Pokemon.statStages.spe);
-        const p2Speed = this.getEffectiveStat(p2Pokemon, 'spe', p2Pokemon.statStages.spe);
+        const p1Speed = this.getEffectiveStat(p1Pokemon, 'spe', p1Pokemon.statStages.spe, null, p1Tailwind);
+        const p2Speed = this.getEffectiveStat(p2Pokemon, 'spe', p2Pokemon.statStages.spe, null, p2Tailwind);
 
         if (p1Speed !== p2Speed) {
             return p1Speed > p2Speed ? ['p1', 'p2'] : ['p2', 'p1'];
@@ -595,6 +833,7 @@ class BattleEngine {
         // Speed tie - random
         return Math.random() < 0.5 ? ['p1', 'p2'] : ['p2', 'p1'];
     }
+
 
     /**
      * Get move priority
