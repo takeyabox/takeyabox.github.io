@@ -48,7 +48,7 @@ const moveCompatibility = {
         "10まんボルト", "れいとうビーム", "かえんほうしゃ"
     ],
     8: [ // まつりだ (みず/フェアリー)
-        "ハイドロポンプ", "なみのり", "アクアブレイク", "たきのぼり", "アクアジェット","クイックターン"
+        "ハイドロポンプ", "なみのり", "アクアブレイク", "たきのぼり", "アクアジェット",
         "ムーンフォース", "じゃれつく", "ドレインキッス", "マジカルシャイン",
         "れいとうビーム", "こおりのキバ",
         "まもる", "みがわり", "じこさいせい", "あくび"
@@ -80,6 +80,7 @@ function canLearnMove(pokemonId, moveName) {
     const compatibleMoves = moveCompatibility[pokemonId] || [];
     return compatibleMoves.includes(moveName);
 }
+
 
 
 
