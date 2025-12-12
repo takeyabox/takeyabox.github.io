@@ -177,6 +177,15 @@ const pokemonMoves = [
             flinch: 20
         }
     },
+    {
+        name: "アクアジェット",
+        type: "みず",
+        power: 40,
+        category: "物理",
+        accuracy: 100,
+        priority: 1,
+        effect: {}
+    },
 
     // --- でんき ---
     {
@@ -1188,4 +1197,5 @@ const pokemonMoves = [
             stat_change: [{ target: "self", stat: "atk", stage: 2, chance: 100 }]
         }
     }
+
 ];
