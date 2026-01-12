@@ -639,7 +639,8 @@ function resolveTurn() {
     // Set phase to resolving
     db.ref(`rooms/${roomId}/phase`).set('resolving');
 
-    const state = JSON.parse(JSON.stringify(battleState)); // Deep copy
+    try {
+        const state = JSON.parse(JSON.stringify(battleState)); // Deep copy
     const logs = [];
 
     const p1Data = state.p1;
@@ -655,6 +656,7 @@ function resolveTurn() {
     const turnOrder = battleEngine.determineTurnOrder(
         p1Data.action,
         p2Data.action,
+        p1Pokemon,
         p2Pokemon,
         p1Data.tailwindTurns > 0,
         p2Data.tailwindTurns > 0
@@ -744,7 +746,7 @@ function resolveTurn() {
                 if (canActResult.message) logs.push(canActResult.message);
                 return;
             }
-            if (canActResult.message) logs.push(canActResult.message);
+
 
             logs.push(`${actor.name}の${move.name}！`);
 
@@ -884,8 +886,23 @@ function resolveTurn() {
         state.turn = state.turn + 1;
     }
 
-    // Update Firebase
-    db.ref(`rooms/${roomId}`).set(state);
+        // Update Firebase
+        db.ref(`rooms/${roomId}`).set(state);
+
+    } catch (error) {
+        console.error("Error in resolveTurn:", error);
+        
+        // Recover from error state so game doesn't hang
+        const errorState = {
+            ...battleState,
+            phase: 'battle', // Go back to battle phase
+            log: [...(battleState.log || []), `エラーが発生しました: ${error.message}`],
+            'p1/action': null,
+            'p2/action': null
+        };
+        
+        db.ref(`rooms/${roomId}`).update(errorState);
+    }
 }
 
 /**
