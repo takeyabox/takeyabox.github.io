@@ -88,6 +88,21 @@ const heldItems = [
         id: "wide-lens",
         name: "こうかくレンズ",
         description: "技の命中率が1.1倍になる"
+    },
+    {
+        id: "clear-amulet",
+        name: "クリアチャーム",
+        description: "相手の技や特性で能力を下げられない"
+    },
+    {
+        id: "covert-cloak",
+        name: "おんみつマント",
+        description: "相手の技の追加効果を受けない"
+    },
+    {
+        id: "heavy-duty-boots",
+        name: "あつぞこブーツ",
+        description: "ステルスロック等の設置技の効果を受けない"
     }
 
 ];

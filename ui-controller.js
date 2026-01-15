@@ -358,10 +358,34 @@ class UIController {
             typesDiv.appendChild(typeBadge);
         });
 
-        // Ability
-        const abilityDiv = document.createElement('div');
-        abilityDiv.className = 'ability-display';
-        abilityDiv.innerHTML = `<strong>特性:</strong> ${pokemon.ability.name}<br><small>${pokemon.ability.description}</small>`;
+        // Ability selector
+        const abilitySelectDiv = document.createElement('div');
+        abilitySelectDiv.className = 'ability-select-container';
+        abilitySelectDiv.style.marginBottom = '10px';
+
+        const abilityLabel = document.createElement('label');
+        abilityLabel.textContent = '特性:';
+        abilityLabel.style.display = 'block';
+        abilityLabel.style.marginBottom = '4px';
+        abilityLabel.style.fontSize = '0.85rem';
+        abilityLabel.style.fontWeight = 'bold';
+
+        const abilitySelect = document.createElement('select');
+        abilitySelect.className = 'ability-select';
+        abilitySelect.dataset.pokemonId = pokemon.id;
+
+        // Support both old and new ability format
+        const abilities = pokemon.abilities || [pokemon.ability];
+        abilities.forEach((ability, index) => {
+            const option = document.createElement('option');
+            option.value = ability.name;
+            option.textContent = `${ability.name} - ${ability.description}`;
+            if (index === 0) option.selected = true;
+            abilitySelect.appendChild(option);
+        });
+
+        abilitySelectDiv.appendChild(abilityLabel);
+        abilitySelectDiv.appendChild(abilitySelect);
 
         // Move selects
         const moveSelectsDiv = document.createElement('div');
@@ -445,7 +469,7 @@ class UIController {
 
         card.appendChild(header);
         card.appendChild(typesDiv);
-        card.appendChild(abilityDiv);
+        card.appendChild(abilitySelectDiv);
         card.appendChild(moveSelectsDiv);
         card.appendChild(itemSelectDiv);
         card.appendChild(leadDiv);

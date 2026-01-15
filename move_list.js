@@ -124,6 +124,83 @@ const pokemonMoves = [
             status_ailment: { name: "sleep", chance: 100, delayed: true } // 次のターン終了時に眠り
         }
     },
+    {
+        name: "はたく",
+        type: "ノーマル",
+        power: 40,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {}
+    },
+    {
+        name: "のしかかり",
+        type: "ノーマル",
+        power: 85,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            status_ailment: { name: "paralysis", chance: 30 }
+        }
+    },
+    {
+        name: "からげんき",
+        type: "ノーマル",
+        power: 70,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            doubles_when_status: true  // User has status condition
+        }
+    },
+    {
+        name: "でんこうせっか",
+        type: "ノーマル",
+        power: 80,
+        category: "物理",
+        accuracy: 100,
+        priority: 2,
+        effect: {}
+    },
+    {
+        name: "おいわい",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "特になし"
+        }
+    },
+    {
+        name: "はねる",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            special_condition: "効果なし"
+        }
+    },
+    {
+        name: "おかたづけ",
+        type: "ノーマル",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            field_effect: "全ての設置技を除去",
+            stat_change: [
+                { target: "self", stat: "atk", stage: 1, chance: 100 },
+                { target: "self", stat: "spe", stage: 1, chance: 100 }
+            ]
+        }
+    },
 
     // --- みず ---
     {
@@ -185,6 +262,17 @@ const pokemonMoves = [
         accuracy: 100,
         priority: 1,
         effect: {}
+    },
+    {
+        name: "クイックターン",
+        type: "みず",
+        power: 60,
+        category: "物理",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            switch_self: true
+        }
     },
 
     // --- でんき ---
@@ -648,6 +736,17 @@ const pokemonMoves = [
         priority: 0,
         effect: {
             switch_self: true
+        }
+    },
+    {
+        name: "ねばねばネット",
+        type: "むし",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            field_effect: "交代先の素早さを下げる罠"
         }
     },
     {
@@ -1787,6 +1886,62 @@ const pokemonMoves = [
         priority: 0,
         effect: {
             weather: "rain"
+        }
+    },
+    {
+        name: "あまごい",
+        type: "みず",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            weather: "rain"
+        }
+    },
+    {
+        name: "にほんばれ",
+        type: "ほのお",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            weather: "sunny"
+        }
+    },
+    {
+        name: "すなあらし",
+        type: "いわ",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            weather: "sandstorm"
+        }
+    },
+    {
+        name: "あられ",
+        type: "こおり",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            weather: "hail"
+        }
+    },
+    {
+        name: "さむいギャグ",
+        type: "こおり",
+        power: null,
+        category: "変化",
+        accuracy: null,
+        priority: 0,
+        effect: {
+            weather: "hail",
+            switch_self: true
         }
     }
 ];
