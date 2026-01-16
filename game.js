@@ -336,7 +336,7 @@ function restoreTeamToUI(savedTeam) {
 
 /**
  * Create a new battle room
-
+ 
  */
 function createRoom() {
     const input = document.getElementById('create-room-pass');
@@ -443,17 +443,149 @@ function startBattle() {
             return;
         }
 
+        const prevState = battleState; // Capture previous state
         battleState = snapshot.val();
         renderBattle();
 
-        // Host (p1) resolves turn when both actions are submitted
-        if (mySide === 'p1' &&
-            battleState.phase === 'battle' &&
-            battleState.p1.action &&
-            battleState.p2.action) {
-            resolveTurn();
+        // Host (p1) Game Logic
+        if (mySide === 'p1') {
+            // 1. Resolve Turn when both actions submitted
+            if (battleState.phase === 'battle' &&
+                battleState.p1.action &&
+                battleState.p2.action) {
+                resolveTurn();
+            }
+
+            // 2. Handle Switching Phase
+            if (battleState.phase === 'switching') {
+                handleSwitchingPhase(prevState, battleState);
+            }
         }
     });
+}
+
+/**
+ * Handle Switching Phase Logic (Host Only)
+ */
+function handleSwitchingPhase(prevState, currentState) {
+    if (!prevState) return;
+
+    try {
+        const updates = {};
+        let logs = [];
+        let stateChanged = false;
+
+        // Helper to process switch for side
+        const processSwitch = (side) => {
+            const prevIndex = prevState[side].activeIndex;
+            const currIndex = currentState[side].activeIndex;
+
+            if (prevIndex !== currIndex) {
+                console.log(`[Switch] ${side} switched from ${prevIndex} to ${currIndex}`);
+                const sideState = currentState[side];
+                const oldPoke = sideState.team[prevIndex];
+                const newPoke = sideState.team[currIndex];
+                const team = [...sideState.team];
+
+                // 1. Reset Old Pokemon Volatile Status
+                if (oldPoke) {
+                    // Baton Pass check
+                    if (sideState.batonPass) {
+                        const passedStats = { ...oldPoke.statStages };
+                        const passedSubstituteHp = oldPoke.substituteHp;
+
+                        // Apply to New Pokemon (in local var)
+                        newPoke.statStages = passedStats;
+                        if (passedSubstituteHp > 0) {
+                            newPoke.substituteHp = passedSubstituteHp;
+                            logs.push(`${oldPoke.name}の みがわりを 引き継いだ！`);
+                        }
+                        logs.push(`${oldPoke.name}の 能力変化を 引き継いだ！`);
+                    }
+
+                    // Reset volatile
+                    team[prevIndex] = {
+                        ...oldPoke,
+                        statStages: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+                        confusionTurns: 0,
+                        badPoisonCounter: 0,
+                        substituteHp: 0,
+                        status: (oldPoke.status === 'confusion' || !oldPoke.status) ? null : oldPoke.status,
+                        choiceMove: null,
+                        perishCount: 0,
+                        drowsyTurn: 0,
+                        isProtected: false
+                    };
+                }
+
+                // 2. Apply Entry Hazards to New Pokemon
+                battleEngine.applyEntryHazards(newPoke, sideState, logs);
+
+                // 3. Entry Logs
+                logs = [`${sideState.name}は ${newPoke.name}を 繰り出した！`, ...logs];
+
+                // 4. Entry Abilities (Intimidate, Weather, etc)
+                const otherSide = side === 'p1' ? 'p2' : 'p1';
+                const opponent = currentState[otherSide].team[currentState[otherSide].activeIndex];
+                if (opponent.currentHp > 0) {
+                    battleEngine.checkEntryAbilities(newPoke, opponent, logs);
+                }
+
+                // Save updated team
+                team[currIndex] = newPoke;
+                updates[`${side}/team`] = team;
+                updates[`${side}/batonPass`] = null; // Clear BP flag
+                stateChanged = true;
+            }
+        };
+
+        // Check P1 switch
+        if (prevState.p1.activeIndex !== currentState.p1.activeIndex) {
+            processSwitch('p1');
+        }
+
+        // Check P2 switch
+        if (prevState.p2.activeIndex !== currentState.p2.activeIndex) {
+            processSwitch('p2');
+        }
+
+        // Check if phase can end
+        const p1Active = currentState.p1.team[currentState.p1.activeIndex];
+        const p2Active = currentState.p2.team[currentState.p2.activeIndex];
+
+        // A player is ready if:
+        // - Their active Pokemon has HP > 0 (they have a valid Pokemon out)
+        // - If they needed to switch (had Pokemon with HP <= 0 in prevState), check if activeIndex changed
+        const p1NeedsSwitch = prevState && prevState.p1.team[prevState.p1.activeIndex].currentHp <= 0;
+        const p2NeedsSwitch = prevState && prevState.p2.team[prevState.p2.activeIndex].currentHp <= 0;
+
+        const p1Ready = p1Active.currentHp > 0 && (!p1NeedsSwitch || prevState.p1.activeIndex !== currentState.p1.activeIndex);
+        const p2Ready = p2Active.currentHp > 0 && (!p2NeedsSwitch || prevState.p2.activeIndex !== currentState.p2.activeIndex);
+
+        console.log(`[SwitchCheck] P1 Ready: ${p1Ready} (HP: ${p1Active.currentHp}, NeedsSwitch: ${p1NeedsSwitch}, IndexChanged: ${prevState ? prevState.p1.activeIndex !== currentState.p1.activeIndex : 'N/A'})`);
+        console.log(`[SwitchCheck] P2 Ready: ${p2Ready} (HP: ${p2Active.currentHp}, NeedsSwitch: ${p2NeedsSwitch}, IndexChanged: ${prevState ? prevState.p2.activeIndex !== currentState.p2.activeIndex : 'N/A'})`);
+
+        if (p1Ready && p2Ready) {
+            console.log("[SwitchCheck] Both ready, transitioning to battle");
+            updates['phase'] = 'battle';
+            updates['turn'] = currentState.turn + 1;
+            updates['p1/action'] = null; // Ensure actions are clear
+            updates['p2/action'] = null;
+            updates['p1/pendingSwitch'] = null; // Clear pending switch flags
+            updates['p2/pendingSwitch'] = null;
+            stateChanged = true;
+        }
+
+        if (stateChanged) {
+            if (logs.length > 0) {
+                updates['log'] = [...currentState.log, ...logs];
+            }
+            console.log("[Switch] Applying updates:", updates);
+            db.ref(`rooms/${roomId}`).update(updates);
+        }
+    } catch (e) {
+        console.error("Error in handleSwitchingPhase:", e);
+    }
 }
 
 /**
@@ -511,7 +643,8 @@ function renderBattle() {
             ui.toggleSwitchMenu(true);
             ui.renderSwitchMenu(myData.team, myData.activeIndex, submitPhaseSwitch, true);
         } else {
-            // Wait for opponent to switch
+            // Hide switch menu and show waiting message
+            ui.toggleSwitchMenu(false);
             ui.showWaitingMessage('相手がポケモンを選んでいます...');
             ui.setSwitchButtonEnabled(false);
         }
@@ -601,100 +734,14 @@ function submitAction(type, move, switchIndex) {
  */
 function submitPhaseSwitch(index) {
     const roomRef = db.ref(`rooms/${roomId}`);
-    const mySideData = battleState[mySide];
-    const oldActiveIndex = mySideData.activeIndex; // Capture old index
-
     const updates = {};
     updates[`${mySide}/activeIndex`] = index;
     updates[`${mySide}/pendingSwitch`] = null;
 
-    roomRef.update(updates).then(() => {
-        // Check if both sides are ready
-        return roomRef.once('value');
-    }).then(snapshot => {
-        const state = snapshot.val();
-
-        // Check p1 status
-        const p1Active = state.p1.team[state.p1.activeIndex];
-        const p1NeedsSwitch = p1Active.currentHp <= 0 || state.p1.pendingSwitch;
-
-        // Check p2 status
-        const p2Active = state.p2.team[state.p2.activeIndex];
-        const p2NeedsSwitch = p2Active.currentHp <= 0 || state.p2.pendingSwitch;
-
-        const isBatonPass = state[mySide].batonPass;
-        let passedStats = null;
-        let passedSubstituteHp = 0;
-
-        const updatedTeam = [...state[mySide].team];
-
-        // Handle Old Pokemon (Reset)
-        if (oldActiveIndex >= 0 && updatedTeam[oldActiveIndex]) {
-            const oldPoke = updatedTeam[oldActiveIndex];
-
-            // Capture stats if BP
-            if (isBatonPass) {
-                passedStats = { ...oldPoke.statStages };
-                passedSubstituteHp = oldPoke.substituteHp;
-            }
-
-            // Reset volatile status
-            oldPoke.statStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
-            oldPoke.confusionTurns = 0;
-            oldPoke.badPoisonCounter = 0;
-            oldPoke.substituteHp = 0;
-            oldPoke.status = oldPoke.status === 'confusion' ? null : oldPoke.status;
-            oldPoke.choiceMove = null;
-            oldPoke.perishCount = 0;
-            oldPoke.drowsyTurn = 0;
-
-            updatedTeam[oldActiveIndex] = oldPoke;
-        }
-
-        // Prepare New Pokemon
-        const newPokemon = updatedTeam[index];
-        const activeSide = state[mySide];
-
-        // Apply Hazards
-        const switchLogs = [];
-        battleEngine.applyEntryHazards(newPokemon, activeSide, switchLogs);
-
-        // Apply Baton Pass
-        if (isBatonPass && passedStats) {
-            newPokemon.statStages = passedStats;
-            if (passedSubstituteHp > 0) {
-                newPokemon.substituteHp = passedSubstituteHp;
-                switchLogs.push(`${updatedTeam[oldActiveIndex].name}の みがわりを 引き継いだ！`);
-            }
-            switchLogs.push(`${updatedTeam[oldActiveIndex].name}の 能力変化を 引き継いだ！`);
-        }
-
-        updatedTeam[index] = newPokemon;
-
-        // Prepare update object
-        const logEntry = [`${state[mySide].name}は${newPokemon.name}を繰り出した！`, ...switchLogs];
-
-        // If neither needs switch, proceed to next turn
-        if (!p1NeedsSwitch && !p2NeedsSwitch) {
-            roomRef.update({
-                phase: 'battle',
-                turn: state.turn + 1,
-                log: [...state.log, ...logEntry],
-                [`${mySide}/team`]: updatedTeam,
-                [`${mySide}/batonPass`]: null, // Clear flag
-                'p1/action': null,
-                'p2/action': null
-            });
-        } else {
-            // Still waiting for other player
-            roomRef.update({
-                log: [...state.log, ...logEntry],
-                [`${mySide}/team`]: updatedTeam,
-                [`${mySide}/batonPass`]: null // Clear flag
-            });
-        }
+    roomRef.update(updates).catch(error => {
+        console.error("Error in submitPhaseSwitch:", error);
+        alert("交代処理中にエラーが発生しました: " + error.message);
     });
-
 }
 
 /**

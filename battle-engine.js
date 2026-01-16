@@ -1152,6 +1152,132 @@ class BattleEngine {
     /**
      * Check for abilities triggers on entry (Weather, Intimidate, Trace, etc)
      */
+    /**
+     * Apply entry hazards (Stealth Rock, Spikes, Toxic Spikes, Sticky Web)
+     */
+    applyEntryHazards(pokemon, sideState, logs) {
+        if (!sideState.hazards) return;
+
+        // Heavy-Duty Boots immunity
+        if (pokemon.item === 'heavy-duty-boots') {
+            logs.push(`${pokemon.name}の あつぞこブーツが 罠を 防いだ！`);
+            return;
+        }
+
+        // Magic Guard immunity
+        if (pokemon.ability && pokemon.ability.name === 'マジックガード') {
+            // Magic Guard prevents hazard damage, but does it prevent Sticky Web speed drop?
+            // "Magic Guard prevents indirect damage..."
+            // Sticky Web is a stat drop, not damage. So it should still work?
+            // Actually, Magic Guard prevents "indirect damage". Spikes/Stealth Rock deal damage. Sticky Web effectively doesn't.
+        }
+
+        // Stealth Rock
+        if (sideState.hazards.stealthRock) {
+            // Check magic guard for damage
+            if (pokemon.ability && pokemon.ability.name === 'マジックガード') {
+                // No damage
+            } else {
+                let factor = 1 / 8;
+                // Type effectiveness check
+                // Rock vs Pokemon Types
+                // We use calculateTypeEffectiveness logic or simplified one?
+                // Let's implement simplified relative to Rock type
+                // Rock is weak to: Fighting, Ground, Steel. Resists: Normal, Flying, Poison, Fire.
+                // Wait, checking EFFECTIVENESS of Rock ON the pokemon.
+                // Rock is Super Effective against: Fire, Ice, Flying, Bug.
+                // Rock is Not Very Effective against: Fighting, Ground, Steel.
+                let effectiveness = 1;
+                pokemon.types.forEach(type => {
+                    const rockEffectiveness = typeChart['いわ'][type];
+                    if (rockEffectiveness !== undefined) effectiveness *= rockEffectiveness;
+                });
+
+                const damage = Math.floor(pokemon.maxHp * factor * effectiveness);
+                pokemon.currentHp = Math.max(0, pokemon.currentHp - damage);
+                logs.push(`${pokemon.name}に とがった岩が 食い込んだ！`);
+            }
+        }
+
+        if (pokemon.currentHp === 0) return;
+
+        // Spikes
+        if (sideState.hazards.spikes > 0) {
+            // Immune: Flying types, Levitate ability, Air Balloon (not implemented yet)
+            const isFlying = pokemon.types.includes('ひこう');
+            const isLevitate = pokemon.ability && pokemon.ability.name === 'ふゆう';
+
+            if (!isFlying && !isLevitate && (!pokemon.ability || pokemon.ability.name !== 'マジックガード')) {
+                let factor = 1 / 8;
+                if (sideState.hazards.spikes === 2) factor = 1 / 6;
+                if (sideState.hazards.spikes === 3) factor = 1 / 4;
+
+                const damage = Math.floor(pokemon.maxHp * factor);
+                pokemon.currentHp = Math.max(0, pokemon.currentHp - damage);
+                logs.push(`${pokemon.name}は まきびしの ダメージを 受けた！`);
+            }
+        }
+
+        if (pokemon.currentHp === 0) return;
+
+        // Toxic Spikes
+        if (sideState.hazards.toxicSpikes > 0) {
+            const isFlying = pokemon.types.includes('ひこう');
+            const isLevitate = pokemon.ability && pokemon.ability.name === 'ふゆう';
+            const isPoison = pokemon.types.includes('どく');
+            const isSteel = pokemon.types.includes('はがね'); // Immune to poison status
+
+            if (isPoison) {
+                // Absorb Toxic Spikes if grounded poison type
+                if (!isFlying && !isLevitate) {
+                    sideState.hazards.toxicSpikes = 0;
+                    logs.push(`${pokemon.name}が どくびしを 回収した！`);
+                    return;
+                }
+            }
+
+            if (!isFlying && !isLevitate && !isSteel && !isPoison) {
+                if (!pokemon.status) {
+                    if (sideState.hazards.toxicSpikes === 1) {
+                        pokemon.status = 'poison';
+                        logs.push(`${pokemon.name}は 毒を 浴びた！`);
+                    } else {
+                        pokemon.status = 'bad_poison';
+                        pokemon.badPoisonCounter = 0;
+                        logs.push(`${pokemon.name}は 猛毒を 浴びた！`);
+                    }
+                }
+            }
+        }
+
+        // Sticky Web
+        if (sideState.hazards.stickyWeb) {
+            const isFlying = pokemon.types.includes('ひこう');
+            const isLevitate = pokemon.ability && pokemon.ability.name === 'ふゆう';
+
+            if (!isFlying && !isLevitate) {
+                // Lower Speed
+                // Check Clear Body / White Smoke / Mirror Armor?
+                // Simple implementation for now
+                const currentStage = pokemon.statStages.spe;
+                if (currentStage > -6) {
+                    pokemon.statStages.spe = Math.max(-6, currentStage - 1);
+                    logs.push(`${pokemon.name}は ねばねばネットに 引っかかった！`);
+
+                    // Trigger Defiant / Competitive
+                    if (pokemon.ability && pokemon.ability.name === 'まけんき') {
+                        pokemon.statStages.atk = Math.min(6, pokemon.statStages.atk + 2);
+                        logs.push(`${pokemon.name}の まけんきが 発動！ 攻撃が ぐーんと 上がった！`);
+                    }
+                    if (pokemon.ability && pokemon.ability.name === 'かちき') {
+                        pokemon.statStages.spa = Math.min(6, pokemon.statStages.spa + 2);
+                        logs.push(`${pokemon.name}の かちきが 発動！ 特攻が ぐーんと 上がった！`);
+                    }
+                }
+            }
+        }
+    }
+
     checkEntryAbilities(pokemon, opponent, logs) {
         if (!pokemon.ability) return;
 
