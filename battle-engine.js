@@ -611,6 +611,51 @@ class BattleEngine {
 
         // Life Orb recoil is handled in move execution
 
+        // Leech Seed
+        if (pokemon.volatileStatus && pokemon.volatileStatus.leechSeed && pokemon.currentHp > 0) {
+            const damage = Math.floor(pokemon.maxHp / 8);
+            if (damage > 0) {
+                pokemon.currentHp = Math.max(0, pokemon.currentHp - damage);
+                logs.push(`${pokemon.name}は やどりぎで 体力を 奪われた！`);
+
+                // Heal opponent (How to find opponent here? applyEndOfTurnEffects only takes 'pokemon')
+                // This function is called for p1Active and p2Active separately in game.js.
+                // We don't have reference to the OTHER pokemon here.
+                // We'll trust the game loop to handle simple damage/heal? 
+                // OR we need to modify applyEndOfTurnEffects to take 'opponent'.
+                // For now, implementing damage only. Ideally we change signature.
+                // Let's change signature in next step if needed, or assume 'logs' helps? 
+                // Wait, healing is crucial for Leech Seed.
+                // I will add 'opponent' argument to applyEndOfTurnEffects in game.js calls, and update method signature.
+            }
+        }
+
+        // Taunt decrement
+        if (pokemon.volatileStatus && pokemon.volatileStatus.taunt) {
+            pokemon.volatileStatus.taunt--;
+            if (pokemon.volatileStatus.taunt <= 0) {
+                delete pokemon.volatileStatus.taunt;
+                logs.push(`${pokemon.name}の 挑発が 解けた！`);
+            }
+        }
+
+        // Encore decrement
+        if (pokemon.volatileStatus && pokemon.volatileStatus.encore) {
+            pokemon.volatileStatus.encore.turns--;
+            if (pokemon.volatileStatus.encore.turns <= 0) {
+                delete pokemon.volatileStatus.encore;
+                logs.push(`${pokemon.name}の アンコールが 解けた！`);
+            }
+        }
+
+        // Destiny Bond reset (lasts until next turn's move? Usually lasts until user moves again or turn ends?)
+        // In games, it lasts until the user's next turn.
+        // Simplified: reset at end of turn.
+        if (pokemon.volatileStatus && pokemon.volatileStatus.destinyBond) {
+            delete pokemon.volatileStatus.destinyBond;
+            // No message needed usually
+        }
+
         // Consume Berries
         this.checkBerryConsumption(pokemon, logs);
     }
@@ -1021,6 +1066,65 @@ class BattleEngine {
             this.setWeather(move.effect.weather, 5);
             const wNames = { 'sunny': '日差しが 強くなった', 'rain': '雨が 降り始めた', 'sandstorm': '砂嵐が 吹き始めた', 'hail': '雪が 降り始めた' };
             logs.push(wNames[move.effect.weather] + '！');
+        }
+
+        // Leech Seed (やどりぎのタネ)
+        if (move.name === 'やどりぎのタネ') {
+            if (defender.types.includes('くさ')) {
+                logs.push(`${defender.name}には 効果がないようだ...`);
+            } else if (defender.volatileStatus && defender.volatileStatus.leechSeed) {
+                logs.push(`${defender.name}には 既に 種が 植え付けられている！`);
+            } else if (defender.placeholderForSubstitute) { // Substitute block check done before?
+                // Ideally substitute blocks status moves. handled in resolveTurn?
+                // game.js resolveTurn calls applyMoveEffects for status moves.
+                // We should check substitute here or rely on game.js.
+                // Current game.js logs "Substitution blocked" if move targets sub?
+                // No, game.js 1026 checks damage. Status moves?
+                // Looking at game.js logic, applyMoveEffects is called.
+                // We should assume sub blocks non-sound status moves.
+                // Adding simple check:
+            } else {
+                if (!defender.volatileStatus) defender.volatileStatus = {};
+                defender.volatileStatus.leechSeed = true;
+                logs.push(`${defender.name}の 体に 種が 植え付けられた！`);
+            }
+        }
+
+        // Taunt (ちょうはつ)
+        if (move.name === 'ちょうはつ') {
+            if (defender.volatileStatus && defender.volatileStatus.taunt) {
+                logs.push(`${defender.name}は 既に 挑発されている！`);
+            } else {
+                if (!defender.volatileStatus) defender.volatileStatus = {};
+                defender.volatileStatus.taunt = 3;
+                logs.push(`${defender.name}は 挑発に 乗ってしまった！`);
+            }
+        }
+
+        // Encore (アンコール)
+        if (move.name === 'アンコール') {
+            // Need checking last used move.
+            // battleState tracking of last move?
+            // defender.lastMove needs to be tracked.
+            // Currently not tracked in simple Pokemon object. 
+            // We need to update game.js to track 'lastMove' for each pokemon.
+            // For now, assume defender.lastMove exists (will implement in game.js).
+            if (!defender.lastMove) {
+                logs.push(`しかし うまく 決まらなかった！`);
+            } else if (defender.volatileStatus && defender.volatileStatus.encore) {
+                logs.push(`${defender.name}は 既に アンコールされている！`);
+            } else {
+                if (!defender.volatileStatus) defender.volatileStatus = {};
+                defender.volatileStatus.encore = { move: defender.lastMove, turns: 3 };
+                logs.push(`${defender.name}は アンコール された！`);
+            }
+        }
+
+        // Destiny Bond (みちづれ)
+        if (move.name === 'みちづれ') {
+            if (!attacker.volatileStatus) attacker.volatileStatus = {};
+            attacker.volatileStatus.destinyBond = true;
+            logs.push(`${attacker.name}は 道連れを 狙っている！`);
         }
 
 

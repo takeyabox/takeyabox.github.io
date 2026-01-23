@@ -896,6 +896,21 @@ const pokemonMoves = [
             stat_change: [{ target: "opponent", stat: "def", stage: -1, chance: 20 }]
         }
     },
+    {
+        name: "すてゼリフ",
+        type: "あく",
+        power: null,
+        category: "変化",
+        accuracy: 100,
+        priority: 0,
+        effect: {
+            switch_self: true,
+            stat_change: [
+                { target: "opponent", stat: "atk", stage: -1, chance: 100 },
+                { target: "opponent", stat: "spa", stage: -1, chance: 100 }
+            ]
+        }
+    },
 
     // --- フェアリー ---
     {

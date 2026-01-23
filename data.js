@@ -11,7 +11,7 @@ const pokemonData = {
             { name: "ふくがん", description: "技の命中率が1.3倍になる。" },
             { name: "すなおこし", description: "場に出ると5ターン砂嵐になる。" }
         ],
-        stats: { hp: 80, atk: 84, def: 70, spa: 77, spd: 64, spe: 96 },
+        stats: { hp: 120, atk: 84, def: 70, spa: 77, spd: 64, spe: 96 },
     },
     2: {
         id: 2,
@@ -22,7 +22,7 @@ const pokemonData = {
             { name: "マイペース", description: "混乱状態にならず、いかくを受けない。" },
             { name: "マジックミラー", description: "相手の変化技を跳ね返す。" }
         ],
-        stats: { hp: 98, atk: 92, def: 95, spa: 110, spd: 100, spe: 75 },
+        stats: { hp: 147, atk: 92, def: 95, spa: 110, spd: 100, spe: 75 },
     },
     3: {
         id: 3,
@@ -33,7 +33,7 @@ const pokemonData = {
             { name: "どくくぐつ", description: "どく状態にした相手を交代できなくする。" },
             { name: "トレース", description: "相手の特性をコピーする。" }
         ],
-        stats: { hp: 93, atk: 95, def: 85, spa: 95, spd: 95, spe: 85 },
+        stats: { hp: 141, atk: 95, def: 85, spa: 95, spd: 95, spe: 85 },
     },
     4: {
         id: 4,
@@ -43,7 +43,7 @@ const pokemonData = {
             { name: "きょううん", description: "自身の技が急所に当たりやすくなる。" },
             { name: "さいせいりょく", description: "引っ込むとHPが最大HPの1/3回復する。" }
         ],
-        stats: { hp: 108, atk: 112, def: 100, spa: 78, spd: 90, spe: 112 },
+        stats: { hp: 162, atk: 112, def: 100, spa: 78, spd: 90, spe: 112 },
     },
     5: {
         id: 5,
@@ -54,7 +54,7 @@ const pokemonData = {
             { name: "てんねん", description: "相手の能力の変化を無効化する。" },
             { name: "テクニシャン", description: "威力60以下の技の威力が1.5倍になる。" }
         ],
-        stats: { hp: 95, atk: 115, def: 115, spa: 40, spd: 88, spe: 67 },
+        stats: { hp: 142, atk: 115, def: 115, spa: 40, spd: 88, spe: 67 },
     },
     6: {
         id: 6,
@@ -65,7 +65,7 @@ const pokemonData = {
             { name: "ぎゃくじょう", description: "HPが半分以下になると特攻が1段階上がる。" },
             { name: "ねんちゃく", description: "相手に道具を奪われない。" }
         ],
-        stats: { hp: 70, atk: 62, def: 73, spa: 102, spd: 60, spe: 103 },
+        stats: { hp: 105, atk: 62, def: 73, spa: 102, spd: 60, spe: 103 },
     },
     7: {
         id: 7,
@@ -75,7 +75,7 @@ const pokemonData = {
             { name: "あついしぼう", description: "ほのおタイプとこおりタイプの技のダメージが半減する。" },
             { name: "こんがりボディ", description: "ほのお技を受けると防御が2段階上がる。" }
         ],
-        stats: { hp: 140, atk: 70, def: 90, spa: 40, spd: 70, spe: 40 },
+        stats: { hp: 210, atk: 70, def: 90, spa: 40, spd: 70, spe: 40 },
     },
     8: {
         id: 8,
@@ -86,7 +86,7 @@ const pokemonData = {
             { name: "すいほう", description: "ほのおタイプの技のダメージが半減し、みずタイプの技で攻撃するときに威力が2倍になる。やけど状態にならない。" },
             { name: "すいすい", description: "雨のとき素早さが2倍になる。" }
         ],
-        stats: { hp: 105, atk: 40, def: 85, spa: 65, spd: 95, spe: 95 },
+        stats: { hp: 157, atk: 40, def: 85, spa: 65, spd: 95, spe: 95 },
     },
     9: {
         id: 9,
@@ -96,7 +96,7 @@ const pokemonData = {
             { name: "まけんき", description: "敵から自分の能力を下げられたとき、こうげきの能力変化が2段階上昇する。" },
             { name: "じしんかじょう", description: "相手を倒すと攻撃が1段階上がる。" }
         ],
-        stats: { hp: 70, atk: 65, def: 50, spa: 50, spd: 58, spe: 107 },
+        stats: { hp: 105, atk: 65, def: 50, spa: 50, spd: 58, spe: 107 },
     },
     10: {
         id: 10,
@@ -107,7 +107,7 @@ const pokemonData = {
             { name: "てつのこぶし", description: "パンチ技の威力が1.2倍になる。" },
             { name: "いろめがね", description: "効果いまひとつの技が等倍になる。" }
         ],
-        stats: { hp: 95, atk: 120, def: 95, spa: 90, spd: 85, spe: 100 },
+        stats: { hp: 142, atk: 120, def: 95, spa: 90, spd: 85, spe: 100 },
     },
     11: {
         id: 11,
@@ -117,7 +117,7 @@ const pokemonData = {
             { name: "なまけ", description: "2ターンに1回しか動けない。" },
             { name: "いかく", description: "場に出ると相手の攻撃を1段階下げる。" }
         ],
-        stats: { hp: 90, atk: 110, def: 70, spa: 50, spd: 60, spe: 60 },
+        stats: { hp: 135, atk: 110, def: 70, spa: 50, spd: 60, spe: 60 },
     },
     12: {
         id: 12,
@@ -127,7 +127,7 @@ const pokemonData = {
             { name: "あめうけざら", description: "雨のとき毎ターンHPが1/16回復する。" },
             { name: "あめふらし", description: "場に出ると5ターン雨にする。" }
         ],
-        stats: { hp: 90, atk: 105, def: 75, spa: 60, spd: 85, spe: 80 },
+        stats: { hp: 135, atk: 105, def: 75, spa: 60, spd: 85, spe: 80 },
     },
     13: {
         id: 13,
@@ -138,7 +138,7 @@ const pokemonData = {
             { name: "すいすい", description: "雨のとき素早さが2倍になる。" },
             { name: "ゆきかき", description: "霰のとき素早さが2倍になる。" }
         ],
-        stats: { hp: 80, atk: 110, def: 80, spa: 90, spd: 80, spe: 85 },
+        stats: { hp: 120, atk: 110, def: 80, spa: 90, spd: 80, spe: 85 },
     },
     14: {
         id: 14,
@@ -149,6 +149,6 @@ const pokemonData = {
             { name: "ゆきがくれ", description: "霰のとき回避率が1.25倍になる。" },
             { name: "ぎゃくじょう", description: "HPが半分以下になると特攻が1段階上がる。" }
         ],
-        stats: { hp: 50, atk: 100, def: 35, spa: 100, spd: 75, spe: 100 },
+        stats: { hp: 75, atk: 100, def: 35, spa: 100, spd: 75, spe: 100 },
     }
 };
