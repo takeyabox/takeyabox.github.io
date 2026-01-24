@@ -514,9 +514,14 @@ function handleSwitchingPhase(prevState, currentState) {
                         choiceMove: null,
                         perishCount: 0,
                         drowsyTurn: 0,
-                        isProtected: false
+                        isProtected: false,
+                        turnsOnField: 0 // Reset when switched out
                     };
                 }
+
+                // Initialize new Pokemon volatile
+                newPoke.turnsOnField = 0; // Fresh entry
+                if (!newPoke.statStages) newPoke.statStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }; // Ensure init
 
                 // 2. Apply Entry Hazards to New Pokemon
                 battleEngine.applyEntryHazards(newPoke, sideState, logs);
@@ -894,6 +899,30 @@ function resolveTurn() {
                     }
                 }
 
+                // First Impression (であいがしら) check
+                if (move.name === 'であいがしら') {
+                    // Requires: turnsOnField === 0 (or 1 depending on when we increment)
+                    // Implementation: Track turnsOnField in pokemon object.
+                    // Assume we increment at end of turn. So usage allowed if turnsOnField === 0
+                    if (actor.turnsOnField > 0) {
+                        logs.push(`しかし うまく 決まらなかった！`);
+                        return;
+                    }
+                }
+
+                // Heal Block check (recovery moves)
+                if (actor.volatileStatus && actor.volatileStatus.healBlock) {
+                    // Check if move is recovery
+                    // Checks: recovery effect, or predefined recovery moves
+                    if (move.effect && move.effect.recovery) {
+                        logs.push(`${actor.name}は 回復封じで 技が 出せない！`);
+                        return;
+                    }
+                    // Moves like Absorb/Drain Punch? Heal Block prevents using them or just prevents healing?
+                    // "Heal Block prevents the use of... and blocks the healing effect of..."
+                    // Simplification: Block recovery category moves. Allow drain moves but block healing?
+                    // Currently assume block pure recovery moves.
+                }
 
                 // Truant (なまけ) Check
                 if (actor.ability && actor.ability.name === 'なまけ') {
@@ -1089,10 +1118,12 @@ function resolveTurn() {
         const p2Active = state.p2.team[state.p2.activeIndex];
 
         if (p1Active.currentHp > 0) {
-            battleEngine.applyEndOfTurnEffects(p1Active, logs);
+            p1Active.turnsOnField = (p1Active.turnsOnField || 0) + 1;
+            battleEngine.applyEndOfTurnEffects(p1Active, logs, p2Active);
         }
         if (p2Active.currentHp > 0) {
-            battleEngine.applyEndOfTurnEffects(p2Active, logs);
+            p2Active.turnsOnField = (p2Active.turnsOnField || 0) + 1;
+            battleEngine.applyEndOfTurnEffects(p2Active, logs, p1Active);
         }
 
         // Weather update
@@ -1100,14 +1131,24 @@ function resolveTurn() {
         if (weatherMsg) logs.push(weatherMsg);
 
         // Tailwind update
-        if (state.p1.tailwindTurns > 0) {
-            state.p1.tailwindTurns--;
-            if (state.p1.tailwindTurns === 0) logs.push(`${state.p1.name}の 追い風が 止んだ！`);
-        }
-        if (state.p2.tailwindTurns > 0) {
-            state.p2.tailwindTurns--;
-            if (state.p2.tailwindTurns === 0) logs.push(`${state.p2.name}の 追い風が 止んだ！`);
-        }
+        ['p1', 'p2'].forEach(side => {
+            if (state[side].tailwindTurns > 0) {
+                state[side].tailwindTurns--;
+                if (state[side].tailwindTurns === 0) logs.push(`${state[side].name}の 追い風が 止んだ！`);
+            }
+            if (state[side].reflect > 0) {
+                state[side].reflect--;
+                if (state[side].reflect === 0) logs.push(`${state[side].name}の リフレクターが なくなった！`);
+            }
+            if (state[side].lightScreen > 0) {
+                state[side].lightScreen--;
+                if (state[side].lightScreen === 0) logs.push(`${state[side].name}の ひかりのかべが なくなった！`);
+            }
+            if (state[side].auroraVeil > 0) {
+                state[side].auroraVeil--;
+                if (state[side].auroraVeil === 0) logs.push(`${state[side].name}の オーロラベールが なくなった！`);
+            }
+        });
 
 
         // Check for battle end
