@@ -1179,15 +1179,19 @@ function resolveTurn() {
         console.error("Error in resolveTurn:", error);
 
         // Recover from error state so game doesn't hang
-        const errorState = {
-            ...battleState,
-            phase: 'battle', // Go back to battle phase
-            log: [...(battleState.log || []), `エラーが発生しました: ${error.message}`],
-            'p1/action': null,
-            'p2/action': null
-        };
+        // Recover from error state safely
+        const errorState = JSON.parse(JSON.stringify(battleState)); // Deep copy parent state
 
-        db.ref(`rooms/${roomId}`).update(errorState);
+        // Mutate the copy directly instead of mixing path updates
+        errorState.phase = 'battle';
+        errorState.log = [...(battleState.log || []), `エラーが発生しました: ${error.message}`];
+        if (errorState.p1) errorState.p1.action = null;
+        if (errorState.p2) errorState.p2.action = null;
+
+        // Use set instead of update to avoid path conflicts if we are rewriting the whole state anyway
+        // Or if we want to use update, we must NOT mix 'p1' object and 'p1/action' key.
+        // Since we have the whole state, .set is safer and consistent with success path.
+        db.ref(`rooms/${roomId}`).set(errorState);
     }
 }
 
